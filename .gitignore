@@ -3,3 +3,5 @@
 *.cgal
 *.csv
 *.mls
+*.npz
+*.pkl

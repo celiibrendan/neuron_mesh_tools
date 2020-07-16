@@ -4,9 +4,11 @@ These functions will help with skeletonization
 """
 import numpy_utils as nu
 import trimesh_utils as tu
-from trimesh_utils import split_significant_pieces,split,combine_meshes,write_neuron_off,grouping_containing_mesh_indices
+from trimesh_utils import split_significant_pieces,split,combine_meshes,write_neuron_off
+import networkx_utils as xu
+import matplotlib_utils as mu
 
-from soma_extraction_utils import find_soma_centroids,find_soma_centroid_containing_meshes
+from soma_extraction_utils import find_soma_centroids,find_soma_centroid_containing_meshes,grouping_containing_mesh_indices
 
 import numpy as np
 import trimesh
@@ -128,8 +130,13 @@ def convert_skeleton_to_nodes_edges(bones_array):
 
     return unique_rows, edges_with_coefficients
 
+def calculate_skeleton_segment_distances(my_skeleton,cumsum=True):
+    segment_distances = np.sqrt(np.sum((my_skeleton[:,0] - my_skeleton[:,1])**2,axis=1)).astype("float")
+    if cumsum:
+        return np.cumsum(segment_distances)
+    else:
+        return segment_distances
 
-    
 def calculate_skeleton_distance(my_skeleton):
     total_distance = np.sum(np.sqrt(np.sum((my_skeleton[:,0] - my_skeleton[:,1])**2,axis=1)))
     return float(total_distance)
@@ -138,13 +145,67 @@ def calculate_skeleton_distance(my_skeleton):
 import ipyvolume as ipv
 
 def plot_ipv_mesh(elephant_mesh_sub,color=[1.,0.,0.,0.2]):
-    mesh4 = ipv.plot_trisurf(elephant_mesh_sub.vertices[:,0],
+    if len(elephant_mesh_sub.vertices) == 0:
+        return
+    
+    #check if the color is a dictionary
+    if type(color) == dict:
+        #get the type of values stored in there
+        labels = list(color.items())
+        
+        #if the labels were stored as just numbers/decimals
+        if type(labels[0]) == int or type(labels[0]) == float:
+            #get all of the possible labels
+            unique_labels = np.unique(labels)
+            #get random colors for all of the labels
+            colors_list =  mu.generate_color_list(n_colors)
+            for lab,curr_color in zip(unique_labels,colors_list):
+                #find the faces that correspond to that label
+                faces_to_keep = [k for k,v in color.items() if v == lab]
+                #draw the mesh with that color
+                curr_mesh = elephant_mesh_sub.submesh([faces_to_keep],append=True)
+                
+                mesh4 = ipv.plot_trisurf(elephant_mesh_sub.vertices[:,0],
                                elephant_mesh_sub.vertices[:,1],
                                elephant_mesh_sub.vertices[:,2],
                                triangles=elephant_mesh_sub.faces)
+                mesh4.color = curr_color
+                mesh4.material.transparent = True
+    else:          
+        mesh4 = ipv.plot_trisurf(elephant_mesh_sub.vertices[:,0],
+                                   elephant_mesh_sub.vertices[:,1],
+                                   elephant_mesh_sub.vertices[:,2],
+                                   triangles=elephant_mesh_sub.faces)
 
-    mesh4.color = color
-    mesh4.material.transparent = True
+        mesh4.color = color
+        mesh4.material.transparent = True
+
+def plot_ipv_skeleton(edge_coordinates,color=[0,0.,1,1]):
+    if len(edge_coordinates) == 0:
+        print("Edge coordinates in plot_ipv_skeleton were of 0 length so returning")
+        return []
+    unique_skeleton_verts_final,edges_final = convert_skeleton_to_nodes_edges(edge_coordinates)
+    mesh2 = ipv.plot_trisurf(unique_skeleton_verts_final[:,0], 
+                            unique_skeleton_verts_final[:,1], 
+                            unique_skeleton_verts_final[:,2], 
+                            lines=edges_final)
+    #print(f"color in ipv_skeleton = {color}")
+    mesh2.color = color 
+    mesh2.material.transparent = True
+
+    return unique_skeleton_verts_final
+
+def plot_ipv_scatter(scatter_points,scatter_color=[1.,0.,0.,0.5],
+                    scatter_size=0.4):
+    scatter_points = np.array(scatter_points).reshape(-1,3)
+    mesh_5 = ipv.scatter(
+            scatter_points[:,0], 
+            scatter_points[:,1],
+            scatter_points[:,2], 
+            size=scatter_size, 
+            color=scatter_color,
+            marker="sphere")
+    mesh_5.material.transparent = True
 
 def graph_skeleton_and_mesh(main_mesh_verts=[],
                             main_mesh_faces=[],
@@ -153,19 +214,38 @@ def graph_skeleton_and_mesh(main_mesh_verts=[],
                             edge_coordinates=[],
                             other_meshes=[],
                             other_meshes_colors =  [],
+                            mesh_alpha=0.2,
+                            other_meshes_face_components = [],
+                            other_skeletons = [],
+                            other_skeletons_colors =  [],
+                            return_other_colors = False,
                             main_mesh_color = [0.,1.,0.,0.2],
                             main_skeleton_color = [0,0.,1,1],
                             main_mesh_face_coloring = [],
-                           buffer=0,
+                            other_scatter=[],
+                            scatter_size = 0.3,
+                            other_scatter_colors=[],
+                            main_scatter_color=[1.,0.,0.,0.5],
+                            buffer=1000,
                            axis_box_off=True,
-                           html_path=""):
+                           html_path="",
+                           show_at_end=True,
+                           append_figure=False):
     """
-    Graph the final result: 
+    Graph the final result of skeleton and mesh
+    
+    Pseudocode on how to do face colorings :
+    could get a dictionary mapping faces to colors or groups
+    - if mapped to groups then do random colors (and generate them)
+    - if mapped to colors then just do submeshes and send the colors
     """
-
-    ipv.figure(figsize=(15,15))
+    if not append_figure:
+        ipv.figure(figsize=(15,15))
+    
     main_mesh_vertices = []
     
+    
+    #print("Working on main skeleton")
     if (len(unique_skeleton_verts_final) > 0 and len(edges_final) > 0) or (len(edge_coordinates)>0):
         if (len(edge_coordinates)>0):
             unique_skeleton_verts_final,edges_final = convert_skeleton_to_nodes_edges(edge_coordinates)
@@ -179,6 +259,7 @@ def graph_skeleton_and_mesh(main_mesh_verts=[],
         
         main_mesh_vertices.append(unique_skeleton_verts_final)
     
+    #print("Working on main mesh")
     if len(main_mesh_verts) > 0 and len(main_mesh_faces) > 0:
         if len(main_mesh_face_coloring) > 0:
             #will go through and color the faces of the main mesh if any sent
@@ -196,10 +277,88 @@ def graph_skeleton_and_mesh(main_mesh_verts=[],
             mesh3.material.transparent = True
             
         main_mesh_vertices.append(main_mesh_verts)
+    
+    # cast everything to list type
+    if type(other_meshes) != list and type(other_meshes) != np.ndarray:
+        other_meshes = [other_meshes]
+    if type(other_meshes_colors) != list and type(other_meshes_colors) != np.ndarray:
+        other_meshes_colors = [other_meshes_colors]
+    
+    if type(other_skeletons) != list and type(other_skeletons) != np.ndarray:
+        other_skeletons = [other_skeletons]
+    if type(other_skeletons_colors) != list and type(other_skeletons_colors) != np.ndarray:
+        other_skeletons_colors = [other_skeletons_colors]
         
+    if type(other_scatter) != list and type(other_scatter) != np.ndarray:
+        other_scatter = [other_scatter]
+    if type(other_scatter_colors) != list and type(other_scatter_colors) != np.ndarray:
+        other_scatter_colors = [other_scatter_colors]
+        
+    
+    
+    if len(other_meshes) > 0:
+        if len(other_meshes_face_components ) > 0:
+            other_meshes_colors = other_meshes_face_components
+        elif len(other_meshes_colors) == 0:
+            other_meshes_colors = [main_mesh_color]*len(other_meshes)
+        else:
+            #get the locations of all of the dictionaries
+            if "random" in other_meshes_colors:
+                other_meshes_colors = mu.generate_color_list(
+                            user_colors=[], #if user sends a prescribed list
+                            n_colors=len(other_meshes),
+                            colors_to_omit=["green","blue"], #because that is the one used for the main mesh
+                            alpha_level=mesh_alpha)
+            else:
+                other_meshes_colors = mu.generate_color_list(
+                            user_colors=other_meshes_colors, #if user sends a prescribed list
+                            n_colors=len(other_meshes),
+                            colors_to_omit=["green","blue"], #because that is the one used for the main mesh
+                            alpha_level=mesh_alpha)
+            
+    
+       
+    #print("Working on other meshes")
     for curr_mesh,curr_color in zip(other_meshes,other_meshes_colors):
+        
         plot_ipv_mesh(curr_mesh,color=curr_color)
         main_mesh_vertices.append(curr_mesh.vertices)
+    
+    
+    #print("Working on other skeletons")
+    if len(other_skeletons) > 0:
+        if len(other_skeletons_colors) == 0:
+            other_skeletons_colors = [main_skeleton_color]*len(other_skeletons)
+        elif "random" in other_skeletons_colors:
+            other_skeletons_colors = mu.generate_color_list(
+                        user_colors=[], #if user sends a prescribed list
+                        n_colors=len(other_skeletons),
+                        colors_to_omit=["green","blue"], #because that is the one used for the main mesh
+                        alpha_level=1)
+        else:
+            
+            other_skeletons_colors = mu.generate_color_list(
+                        user_colors=other_skeletons_colors, #if user sends a prescribed list
+                        n_colors=len(other_skeletons),
+                        colors_to_omit=["green","blue"], #because that is the one used for the main mesh
+                        alpha_level=1)
+            #print(f"user colors picked for other_skeletons_colors = {other_skeletons_colors}")
+    
+        
+    for curr_sk,curr_color in zip(other_skeletons,other_skeletons_colors):
+        sk_vertices = plot_ipv_skeleton(curr_sk,color=curr_color)
+        main_mesh_vertices.append(sk_vertices)
+        
+        
+    #printing the scatter plots
+    #print("Working on other scatter plots")
+    if len(other_scatter) > 0 and len(other_scatter_colors) == 0:
+        other_scatter_colors = [main_scatter_color]*len(other_scatter)
+        
+    for curr_scatter,curr_color in zip(other_scatter,other_scatter_colors):
+        plot_ipv_scatter(curr_scatter,scatter_color=curr_color,
+                    scatter_size=scatter_size)
+        main_mesh_vertices.append(curr_scatter)
     
 
     #create the main mesh vertices for setting the bounding box
@@ -208,10 +367,19 @@ def graph_skeleton_and_mesh(main_mesh_verts=[],
     elif len(main_mesh_vertices) == 1:
         main_mesh_vertices = main_mesh_vertices[0]
     else:
-        main_mesh_vertices = np.vstack(main_mesh_vertices)
+        #get rid of all empt
+        main_mesh_vertices = np.vstack([k.reshape(-1,3) for k in main_mesh_vertices if len(k)>0])
     
-    volume_max = np.max(main_mesh_vertices,axis=0)
-    volume_min = np.min(main_mesh_vertices,axis=0)
+    if len(main_mesh_vertices) == 0:
+        raise Exception("There is nothing to grpah")
+    
+    volume_max = np.max(main_mesh_vertices.reshape(-1,3),axis=0)
+    volume_min = np.min(main_mesh_vertices.reshape(-1,3),axis=0)
+    
+#     if len(main_mesh_vertices) < 10:
+#         print(f"main_mesh_vertices = {main_mesh_vertices}")
+#     print(f"volume_max= {volume_max}")
+#     print(f"volume_min= {volume_min}")
 
     ranges = volume_max - volume_min
     index = [0,1,2]
@@ -243,10 +411,15 @@ def graph_skeleton_and_mesh(main_mesh_verts=[],
     else:
         ipv.style.axes_on()
         ipv.style.box_on()
-    ipv.show()
+        
+    if show_at_end:
+        ipv.show()
     
     if html_path != "":
         ipv.pylab.save(html_path)
+    
+    if return_other_colors:
+        return other_meshes_colors
         
 
 
@@ -310,7 +483,7 @@ def change_basis_matrix(v):
 def mesh_subtraction_by_skeleton(main_mesh,edges,
                                  buffer=0.01,
                                 bbox_ratio=1.2,
-                                 distance_threshold=500,
+                                 distance_threshold=2000,
                              significance_threshold=500,
                                 print_flag=False):
     """
@@ -362,7 +535,7 @@ def mesh_subtraction_by_skeleton(main_mesh,edges,
     skeleton_bounding_corners = np.vstack([np.max(skeleton_nodes,axis=0),
                np.min(skeleton_nodes,axis=0)])
     
-    main_mesh_bbox_restricted, faces_bbox_inclusion = tu.bbox_mesh_restrcition(main_mesh,
+    main_mesh_bbox_restricted, faces_bbox_inclusion = tu.bbox_mesh_restriction(main_mesh,
                                                                         skeleton_bounding_corners,
                                                                         bbox_ratio)
 
@@ -378,7 +551,7 @@ def mesh_subtraction_by_skeleton(main_mesh,edges,
     #face_subtract_color = []
     face_subtract_indices = []
 
-    distance_threshold = 2000
+    #distance_threshold = 2000
     
     edge_loop_print=False
     for i,ex_edge in tqdm(enumerate(edges)):
@@ -394,54 +567,77 @@ def mesh_subtraction_by_skeleton(main_mesh,edges,
             if edge_loop_print:
                 print(f"edge number {i}, {ex_edge}: has sum less than {sum_threshold} so skipping")
             continue
-        if edge_loop_print:
-            print(f"Checking Edge Distance = {time.time()-loop_start}")
+#         if edge_loop_print:
+#             print(f"Checking Edge Distance = {time.time()-loop_start}")
+#         loop_start = time.time()
         
-        loop_start = time.time()
         cob_edge = change_basis_matrix(edge_line)
-        if edge_loop_print:
-            print(f"Change of Basis Matrix calculation = {time.time()-loop_start}")
-
-        loop_start - time.time()
+        
+#         if edge_loop_print:
+#             print(f"Change of Basis Matrix calculation = {time.time()-loop_start}")
+#         loop_start - time.time()
+        
         #get the limits of the example edge itself that should be cutoff
-        slice_range = np.sort((cob_edge@ex_edge.T)[2,:])
+        edge_trans = (cob_edge@ex_edge.T)
+        #slice_range = np.sort((cob_edge@ex_edge.T)[2,:])
+        slice_range = np.sort(edge_trans[2,:])
 
         # adding the buffer to the slice range
         slice_range_buffer = slice_range + np.array([-buffer,buffer])
-        if edge_loop_print:
-            print(f"Calculate slice= {time.time()-loop_start}")
-        loop_start = time.time()
+        
+#         if edge_loop_print:
+#             print(f"Calculate slice= {time.time()-loop_start}")
+#         loop_start = time.time()
 
         # generate face midpoints from the triangles
         #face_midpoints = np.mean(main_mesh_bbox_restricted.vertices[main_mesh_bbox_restricted.faces],axis=1) # Old way
         face_midpoints = main_mesh_bbox_restricted.triangles_center
-        if edge_loop_print:
-            print(f"Face midpoints= {time.time()-loop_start}")
-        loop_start = time.time()
+        
+#         if edge_loop_print:
+#             print(f"Face midpoints= {time.time()-loop_start}")
+#         loop_start = time.time()
+        
         #get the face midpoints that fall within the slice (by lookig at the z component)
         fac_midpoints_trans = cob_edge@face_midpoints.T
-        if edge_loop_print:
-            print(f"Face midpoints transform= {time.time()-loop_start}")
-        loop_start = time.time()
-        edge_midpoint = np.mean(ex_edge,axis=0)
-        if edge_loop_print:
-            print(f"edge midpoint= {time.time()-loop_start}")
-        loop_start = time.time()
+        
+#         if edge_loop_print:
+#             print(f"Face midpoints transform= {time.time()-loop_start}")
+#         loop_start = time.time()
+        
+        
+        
+#         if edge_loop_print:
+#             print(f"edge midpoint= {time.time()-loop_start}")
+#         loop_start = time.time()
         
         slice_mask_pre_distance = ((fac_midpoints_trans[2,:]>slice_range_buffer[0]) & 
                       (fac_midpoints_trans[2,:]<slice_range_buffer[1]))
 
-        if edge_loop_print:
-            print(f"Applying slice restriction = {time.time()-loop_start}")
-        loop_start = time.time()
+#         if edge_loop_print:
+#             print(f"Applying slice restriction = {time.time()-loop_start}")
+#         loop_start = time.time()
+        
+        
+        """ 6/18 change
         # apply the distance threshold to the slice mask
+        edge_midpoint = np.mean(ex_edge,axis=0)
         #raise Exception("Add in part for distance threshold here")
         distance_check = np.linalg.norm(face_midpoints[:,:2] - edge_midpoint[:2],axis=1) < distance_threshold
+        
+        """
+        
+#         edge_midpoint = np.mean(cob_edge.T,axis=0)
+#         distance_check = np.linalg.norm((fac_midpoints_trans.T)[:,:2] - edge_midpoint[:2],axis=1) < distance_threshold
+
+        edge_midpoint = np.mean(edge_trans.T,axis=0)
+        distance_check = np.linalg.norm((fac_midpoints_trans.T)[:,:2] - edge_midpoint[:2],axis=1) < distance_threshold
+        
+
         slice_mask = slice_mask_pre_distance & distance_check
         
-        if edge_loop_print:
-            print(f"Applying distance restriction= {time.time()-loop_start}")
-        loop_start = time.time()
+#         if edge_loop_print:
+#             print(f"Applying distance restriction= {time.time()-loop_start}")
+#         loop_start = time.time()
 
 
         face_list = np.arange(0,len(main_mesh_bbox_restricted.faces))[slice_mask]
@@ -460,30 +656,34 @@ def mesh_subtraction_by_skeleton(main_mesh,edges,
                 print("So just skipping this edge")
             continue
 
-        if edge_loop_print:
-            print(f"getting submesh= {time.time()-loop_start}")
-        loop_start = time.time()
+#         if edge_loop_print:
+#             print(f"getting submesh= {time.time()-loop_start}")
+#         loop_start = time.time()
         
         #get all disconnected mesh pieces of the submesh and the face indices for lookup later
-        sub_components,sub_components_face_indexes = sk.split(main_mesh_sub,only_watertight=False)
+        sub_components,sub_components_face_indexes = tu.split(main_mesh_sub,only_watertight=False)
         if type(sub_components) != type(np.array([])) and type(sub_components) != list:
-            print(f"meshes = {sub_components}, with type = {type(sub_components)}")
+            #print(f"meshes = {sub_components}, with type = {type(sub_components)}")
             if type(sub_components) == type(trimesh.Trimesh()) :
                 sub_components = [sub_components]
             else:
                 raise Exception("The sub_components were not an array, list or trimesh")
         
-        if edge_loop_print:
-            print(f"splitting the mesh= {time.time()-loop_start}")
-        loop_start = time.time()
+#         if edge_loop_print:
+#             print(f"splitting the mesh= {time.time()-loop_start}")
+#         loop_start = time.time()
 
         #getting the indices of the submeshes whose bounding box contain the edge 
+        """ 6-19: might want to use bounding_box_oriented? BUT THIS CHANGE COULD SLOW IT DOWN
+        contains_points_results = np.array([s_comp.bounding_box_oriented.contains(ex_edge.reshape(-1,3)) for s_comp in sub_components])
+        """
         contains_points_results = np.array([s_comp.bounding_box.contains(ex_edge.reshape(-1,3)) for s_comp in sub_components])
+        
         containing_indices = (np.arange(0,len(sub_components)))[np.sum(contains_points_results,axis=1) >= len(ex_edge)]
         
-        if edge_loop_print:
-            print(f"containing indices= {time.time()-loop_start}")
-        loop_start = time.time()
+#         if edge_loop_print:
+#             print(f"containing indices= {time.time()-loop_start}")
+#         loop_start = time.time()
 
         if len(containing_indices) != 1: 
             if edge_loop_print:
@@ -505,22 +705,23 @@ def mesh_subtraction_by_skeleton(main_mesh,edges,
             closest_bbox = np.argmin([np.linalg.norm(edge_center-b_center) for b_center in bbox_centers])
             #print(f"bbox_distance = {closest_bbox}")
             edge_skeleton_faces = faces_bbox_inclusion[face_list[sub_components_face_indexes_inner[closest_bbox]]]
-            if edge_loop_print:
-                print(f"finding closest box when 0 or 2 or more containing boxes= {time.time()-loop_start}")
-            loop_start = time.time()
+            
+#             if edge_loop_print:
+#                 print(f"finding closest box when 0 or 2 or more containing boxes= {time.time()-loop_start}")
+#             loop_start = time.time()
         else:# when only one viable submesh piece and just using that sole index
             #print(f"only one viable submesh piece so using index only number in: {containing_indices}")
             
             edge_skeleton_faces = faces_bbox_inclusion[face_list[sub_components_face_indexes[containing_indices[0]]]]
-            if edge_loop_print:
-                print(f"only 1 containig face getting the edge_skeleton_faces= {time.time()-loop_start}")
-            loop_start = time.time()
+#             if edge_loop_print:
+#                 print(f"only 1 containig face getting the edge_skeleton_faces= {time.time()-loop_start}")
+#             loop_start = time.time()
 
         if len(edge_skeleton_faces) < 0:
             print(f"****** Warning the edge index {i}: had no faces in the edge_skeleton_faces*******")
         face_subtract_indices.append(edge_skeleton_faces)
-        if edge_loop_print:
-                print(f"check and append for face= {time.time()-loop_start}")
+#         if edge_loop_print:
+#                 print(f"check and append for face= {time.time()-loop_start}")
         #face_subtract_color.append(viable_colors[i%len(viable_colors)])
         
     print(f"Total Mesh subtraction time = {np.round(time.time() - start_time,4)}")
@@ -734,10 +935,13 @@ def stitch_skeleton(
     stitch_start = time.time()
 
     #create the graph from the edges
-    B = nx.Graph()
+    #B = nx.Graph() #old way
+    B = xu.GraphOrderedEdges()
     B.add_nodes_from([(x,{"coordinates":y}) for x,y in enumerate(unique_rows)])
+    
+    
     B.add_edges_from(edges_with_coefficients)
-
+    
     if stitch_print:
         print(f"Putting edges into networkx graph= {time.time()-stitch_start}")
     stitch_start = time.time()
@@ -745,8 +949,11 @@ def stitch_skeleton(
     # find the shortest distance between the two different subgraphs:
     from scipy.spatial import distance_matrix
 
-    UG = B.to_undirected()
-
+    # UG = B.to_undirected() #no longer need this
+    UG = B
+    
+    UG.edges_ordered()
+    
     if stitch_print:
         print(f"Making undirected graph= {time.time()-stitch_start}")
     stitch_start = time.time()
@@ -760,10 +967,13 @@ def stitch_skeleton(
     n_components, labels = scipy.sparse.csgraph.connected_components(csgraph=nx.adjacency_matrix(UG), directed=False, return_labels=True)
     #print(f"At beginning n_components = {n_components}, unique labels = {np.unique(labels)}")
     
+    
+    
     subgraph_components = np.where(labels==0)[0]
     outside_components = np.where(labels !=0)[0]
 
     for j in tqdm(range(n_components)):
+        
         counter+= 1
         if stitch_print:
             print(f"Starting Loop {counter}")
@@ -886,13 +1096,14 @@ def stitch_skeleton(
     current_coordinates = unique_rows
     
     try:
-        total_edges_stitched = current_coordinates[np.array(list(UG.edges())).reshape(-1,2)]
+        #total_edges_stitched = current_coordinates[np.array(list(UG.edges())).reshape(-1,2)] #old way of edges
+        total_edges_stitched = current_coordinates[UG.edges_ordered().reshape(-1,2)]
     except:
         print("getting the total edges stitched didn't work")
         print(f"current_coordinates = {current_coordinates}")
-        print(f"UG.edges() = {list(UG.edges())} with type = {type(list(UG.edges()))}")
-        print(f"np.array(UG.edges()) = {np.array(list(UG.edges()))}")
-        print(f"np.array(UG.edges()).reshape(-1,2) = {np.array(list(UG.edges())).reshape(-1,2)}")
+        print(f"UG.edges_ordered() = {list(UG.edges_ordered())} with type = {type(list(UG.edges_ordered()))}")
+        print(f"np.array(UG.edges_ordered()) = {UG.edges_ordered()}")
+        print(f"np.array(UG.edges_ordered()).reshape(-1,2) = {UG.edges_ordered().reshape(-1,2)}")
         
         raise Exception(" total_edges_stitched not calculated")
         #print("returning ")
@@ -955,12 +1166,16 @@ def calcification(
 
 
 # ---------- Does the cleaning of the skeleton -------------- #
-def convert_skeleton_to_graph(staring_edges,
+
+#old way that didnt account for the nodes that are close together
+def convert_skeleton_to_graph_old(staring_edges,
                              stitch_print=False):
     stitch_start = time.time()
 
     all_skeleton_vertices = staring_edges.reshape(-1,3)
     unique_rows,indices = np.unique(all_skeleton_vertices,return_inverse=True,axis=0)
+    #need to merge unique indices so if within a certain range of each other then merge them together
+    
     edges_with_coefficients = indices.reshape(-1,2)
 
     if stitch_print:
@@ -968,9 +1183,157 @@ def convert_skeleton_to_graph(staring_edges,
     stitch_start = time.time()
 
     #create the graph from the edges
-    B = nx.Graph()
-    B.add_nodes_from([(x,{"coordinates":y}) for x,y in enumerate(unique_rows)])
-    B.add_edges_from(edges_with_coefficients)
+    #B = nx.Graph() #old way
+    B = xu.GraphOrderedEdges()
+    B.add_nodes_from([(int(x),{"coordinates":y}) for x,y in enumerate(unique_rows)])
+    #print("just added the nodes")
+    
+    #print(f"xu.get_edge_attributes(B)= {xu.get_edge_attributes(B)}")
+    
+    #B.add_edges_from(edges_with_coefficients) #older weights without weights
+    #adds weights for the edges
+    weights = np.linalg.norm(unique_rows[edges_with_coefficients[:,0]] - unique_rows[edges_with_coefficients[:,1]],axis=1)
+    edges_with_weights = np.hstack([edges_with_coefficients,weights.reshape(-1,1)])
+    B.add_weighted_edges_from(edges_with_weights)
+    #print("right after add_weighted_edges_from")
+    #print(f"xu.get_edge_attributes(B)= {xu.get_edge_attributes(B)}")
+
+    print(f"len(B.edges()) = {len(B.edges())}")
+    if stitch_print:
+        print(f"Putting edges into networkx graph= {time.time()-stitch_start}")
+    stitch_start = time.time()
+
+    # find the shortest distance between the two different subgraphs:
+    from scipy.spatial import distance_matrix
+    #print(f"B.__class__ = {B.__class__}")
+    #print(f"xu.get_edge_attributes(B)= {xu.get_edge_attributes(B)}")
+    UG = B
+    #UG = B.to_undirected()
+    
+    if stitch_print:
+        print(f"Making undirected graph= {time.time()-stitch_start}")
+    stitch_start = time.time()
+    
+    #UG.remove_edges_from(nx.selfloop_edges(UG))
+    UG = xu.remove_selfloops(UG)
+    print(f"len(UG.edges()) = {len(UG.edges())}")
+    #print(f"UG.__class__ = {UG.__class__}")
+    #make sure the edges are ordered 
+    UG.reorder_edges()
+    print(f"len(UG.edges()) = {len(UG.edges())}")
+    #print(f"UG.__class__ = {UG.__class__}")
+    return UG
+
+
+def convert_skeleton_to_graph(staring_edges,
+                             stitch_print=False,
+                                   combine_node_dist = 0.1,
+                             node_matching_size_threshold=10000):
+    """
+    Purpose: To automatically convert a skeleton to a graph
+    
+    * 7/9 adjustments: make so slight differences in coordinates not affect the graph
+    
+    Pseudocode for how you could apply the closeness to skeletons
+    1) Get the unique rows
+    2) See if there are any rows that are the same (that gives you what to change them to)
+    3) put those into a graph and find the connected components
+    4) Pick the first node in the component to be the dominant one
+    a. for each non-dominant node, replace every occurance of the non-dominant one with the dominant one in indices
+    - add the non-dominant ones to a list to delete 
+    
+    ** this will result in an indices that doesn't have any of the repeat nodes, but the repeat nodes are still 
+    taking up the numbers that they were originally in order with ***
+    
+    np.delete(x,[1,3],axis=0)) # to delete the rows 
+    
+    5) remap the indices and delete the unique rows that were not used
+    
+    
+    5) Do everything like normal
+
+"""
+    stitch_start = time.time()
+
+    all_skeleton_vertices = staring_edges.reshape(-1,3)
+    unique_rows,indices = np.unique(all_skeleton_vertices,return_inverse=True,axis=0)
+    #need to merge unique indices so if within a certain range of each other then merge them together
+    reshaped_indices = indices.reshape(-1,2)
+    
+    #This is fine because know there might be but fix it later on! (in terms of concept graph)
+    if len(reshaped_indices) != len(np.unique(reshaped_indices,axis=0)):
+        print("**** Warning: There were redundant edges in the skeleton*****")
+    
+    #part where will combine nodes that are very close
+    
+    #only do this if small enough, if too big then must skip (because will get memory error)
+    if len(unique_rows) < node_matching_size_threshold:
+    
+        matching_nodes = nu.get_matching_vertices(unique_rows,equiv_distance=combine_node_dist)
+
+        if len(matching_nodes) > 0:
+            """
+            Overall this loop will change the unique_rows and indices to account for nodes that should be merged
+            """
+            # Example graph for finding components
+            ex_edges = matching_nodes.reshape(-1,2)
+            ex_graph = nx.from_edgelist(ex_edges)
+
+
+            #get the connected components
+            all_conn_comp = list(nx.connected_components(ex_graph))
+
+            to_delete_nodes = []
+            for c_comp in all_conn_comp:
+                curr_comp = list(c_comp)
+                dom_node = curr_comp[0]
+                non_dom_nodes = curr_comp[1:]
+                for n_dom in non_dom_nodes:
+                    indices[indices==n_dom] = dom_node
+                    to_delete_nodes.append(n_dom)
+
+            unique_leftovers = np.sort(np.unique(indices.ravel()))
+            #construct a dictionary for mapping
+            map_dict = dict([(v,k) for k,v in enumerate(unique_leftovers)])
+
+            print(f"Gettng rid of {len(to_delete_nodes)} nodes")
+
+            def vec_translate(a):    
+                return np.vectorize(map_dict.__getitem__)(a)
+
+            indices = vec_translate(indices)
+
+            #now delete the rows that were ignored
+            unique_rows = np.delete(unique_rows,to_delete_nodes,axis=0)
+
+            #do a check to make sure everything is working
+            if len(np.unique(indices.ravel())) != len(unique_rows) or max(np.unique(indices.ravel())) != len(unique_rows) - 1:
+                raise Exception("The indices list does not match the size of the unique rows"
+                               f"np.unique(indices.ravel()) = {np.unique(indices.ravel())}, len(unique_rows)= {len(unique_rows) }")
+    
+    #resume regular conversion
+    edges_with_coefficients = indices.reshape(-1,2)
+    
+    
+
+    if stitch_print:
+        print(f"Getting the unique rows and indices= {time.time()-stitch_start}")
+    stitch_start = time.time()
+
+    #create the graph from the edges
+    #B = nx.Graph() #old way
+    B = xu.GraphOrderedEdges()
+    B.add_nodes_from([(int(x),{"coordinates":y}) for x,y in enumerate(unique_rows)])
+    #print("just added the nodes")
+    #print(f"xu.get_edge_attributes(B)= {xu.get_edge_attributes(B)}")
+    
+    #B.add_edges_from(edges_with_coefficients) #older weights without weights
+    #adds weights for the edges
+    weights = np.linalg.norm(unique_rows[edges_with_coefficients[:,0]] - unique_rows[edges_with_coefficients[:,1]],axis=1)
+    edges_with_weights = np.hstack([edges_with_coefficients,weights.reshape(-1,1)])
+    B.add_weighted_edges_from(edges_with_weights)
+    #print("right after add_weighted_edges_from")
+    #print(f"xu.get_edge_attributes(B)= {xu.get_edge_attributes(B)}")
 
     if stitch_print:
         print(f"Putting edges into networkx graph= {time.time()-stitch_start}")
@@ -978,30 +1341,39 @@ def convert_skeleton_to_graph(staring_edges,
 
     # find the shortest distance between the two different subgraphs:
     from scipy.spatial import distance_matrix
-
-    UG = B.to_undirected()
-
+    #print(f"B.__class__ = {B.__class__}")
+    #print(f"xu.get_edge_attributes(B)= {xu.get_edge_attributes(B)}")
+    UG = B
+    #UG = B.to_undirected()
+    
     if stitch_print:
         print(f"Making undirected graph= {time.time()-stitch_start}")
     stitch_start = time.time()
     
+    #UG.remove_edges_from(nx.selfloop_edges(UG))
+    UG = xu.remove_selfloops(UG)
+    #print(f"UG.__class__ = {UG.__class__}")
+    #make sure the edges are ordered 
+    UG.reorder_edges()
+    #print(f"UG.__class__ = {UG.__class__}")
     return UG
 
 
-
-def get_skeleton_from_graph(UG):
+def convert_graph_to_skeleton(UG):
     UG = nx.convert_node_labels_to_integers(UG)
     total_coord = nx.get_node_attributes(UG,'coordinates')
     current_coordinates = np.array(list(total_coord.values()))
     
     try:
-        total_edges_stitched = current_coordinates[np.array(list(UG.edges())).reshape(-1,2)]
+        #total_edges_stitched = current_coordinates[np.array(list(UG.edges())).reshape(-1,2)] # old way
+        total_edges_stitched = current_coordinates[UG.edges_ordered().reshape(-1,2)]
     except:
+        UG.edges_ordered()
         print("getting the total edges stitched didn't work")
         print(f"current_coordinates = {current_coordinates}")
-        print(f"UG.edges() = {list(UG.edges())} with type = {type(list(UG.edges()))}")
-        print(f"np.array(UG.edges()) = {np.array(list(UG.edges()))}")
-        print(f"np.array(UG.edges()).reshape(-1,2) = {np.array(list(UG.edges())).reshape(-1,2)}")
+        print(f"UG.edges() = {UG.edges_ordered()} with type = {type(UG.edges_ordered)}")
+        print(f"np.array(UG.edges()) = {UG.edges_ordered()}")
+        print(f"np.array(UG.edges()).reshape(-1,2) = {UG.edges_ordered().reshape(-1,2)}")
         
         raise Exception(" total_edges_stitched not calculated")
         
@@ -1083,6 +1455,7 @@ def clean_skeleton(G,
     """
     
     
+    """ --- old way which had index error when completley straight line 
     def end_node_path_to_junciton(curr_G,end_node):
         curr_node = end_node
         node_list = [curr_node]
@@ -1095,11 +1468,34 @@ def clean_skeleton(G,
             else:
                 break
         return node_list
+    """
+    
+    def end_node_path_to_junciton(curr_G,end_node):
+        curr_node = end_node
+        node_list = [curr_node]
+        for i in range(len(curr_G)):
+            #print(f"\nloop #{i} with curr_node = {curr_node}")
 
+            neighbors = list(curr_G[curr_node])
+            #print(f"neighbors = {neighbors}")
+            #print(f"node_list = {node_list}")
+            if len(neighbors) <= 2:
+                #print(f"[k for k in neighbors if k not in node_list] = {[k for k in neighbors if k not in node_list]}")
+                possible_curr_nodes = [k for k in neighbors if k not in node_list]
+                if len(possible_curr_nodes) <= 0: #this is when it is just one straight line
+                    break
+                else:
+                    curr_node = possible_curr_nodes[0]
+                    node_list.append(curr_node)
+                    #print(f"node_list = {node_list}")
+            else:
+                break
+        return node_list
+    
     print(f"Using Distance measure {distance_func.__name__}")
     
     
-    if type(G) != type(nx.Graph()):
+    if type(G) not in [type(nx.Graph()),type(xu.GraphOrderedEdges())]:
         G = convert_skeleton_to_graph(G)
         
     kwargs = dict()
@@ -1119,46 +1515,52 @@ def clean_skeleton(G,
     end_nodes = end_nodes[end_nodes_dist_to_j<min_distance_to_junction]
     end_nodes_dist_to_j = end_nodes_dist_to_j[end_nodes_dist_to_j<min_distance_to_junction]
     
-    current_end_node = end_nodes[np.argmin(end_nodes_dist_to_j)]
-    #print(f"Ordering the nodes = {time.time() - clean_time}")
-    clean_time = time.time()
-    if print_flag:
-        print(f"total end_nodes = {end_nodes}")
-    #current_end_node = ordered_end_nodes[0]
-    paths_removed = 0
-    
-    for i in tqdm(range(len(end_nodes))):
-        current_path_to_junction = end_node_path_to_junciton(G,current_end_node)
+    if len(end_nodes) == 0 or len(end_nodes_dist_to_j) == 0:
+        #no end nodes so need to return 
+        print("no small end nodes to get rid of so returning whole skeleton")
+    else:
+        current_end_node = end_nodes[np.argmin(end_nodes_dist_to_j)]
+        #print(f"Ordering the nodes = {time.time() - clean_time}")
+        clean_time = time.time()
         if print_flag:
-            #print(f"ordered_end_nodes = {ordered_end_nodes}")
-            print(f"\n\ncurrent_end_node = {current_end_node}")
-            print(f"current_path_to_junction = {current_path_to_junction}")
-        if distance_func(current_path_to_junction,G,**kwargs) <min_distance_to_junction:
+            print(f"total end_nodes = {end_nodes}")
+        #current_end_node = ordered_end_nodes[0]
+        paths_removed = 0
+
+        for i in tqdm(range(len(end_nodes))):
+            current_path_to_junction = end_node_path_to_junciton(G,current_end_node)
             if print_flag:
-                print(f"the current distance that was below was {distance_func(current_path_to_junction,G,**kwargs)}")
-            #remove the nodes
-            paths_removed += 1
-            G.remove_nodes_from(current_path_to_junction[:-1])
-            end_nodes = end_nodes[end_nodes != current_end_node]
-            end_nodes_dist_to_j = np.array([distance_func(end_node_path_to_junciton(G,n),G,**kwargs) for n in end_nodes])
-            
-            end_nodes = end_nodes[end_nodes_dist_to_j<min_distance_to_junction]
-            end_nodes_dist_to_j = end_nodes_dist_to_j[end_nodes_dist_to_j<min_distance_to_junction]
-    
-            if len(end_nodes_dist_to_j)<= 0:
+                #print(f"ordered_end_nodes = {ordered_end_nodes}")
+                print(f"\n\ncurrent_end_node = {current_end_node}")
+                print(f"current_path_to_junction = {current_path_to_junction}")
+            if distance_func(current_path_to_junction,G,**kwargs) <min_distance_to_junction:
+                if print_flag:
+                    print(f"the current distance that was below was {distance_func(current_path_to_junction,G,**kwargs)}")
+                #remove the nodes
+                paths_removed += 1
+                G.remove_nodes_from(current_path_to_junction[:-1])
+                end_nodes = end_nodes[end_nodes != current_end_node]
+                end_nodes_dist_to_j = np.array([distance_func(end_node_path_to_junciton(G,n),G,**kwargs) for n in end_nodes])
+
+                end_nodes = end_nodes[end_nodes_dist_to_j<min_distance_to_junction]
+                end_nodes_dist_to_j = end_nodes_dist_to_j[end_nodes_dist_to_j<min_distance_to_junction]
+
+                if len(end_nodes_dist_to_j)<= 0:
+                    break
+                current_end_node = end_nodes[np.argmin(end_nodes_dist_to_j)]
+    #             if print_flag:
+    #                 print(f"   insdie if statement ordered_end_nodes = {ordered_end_nodes}")
+
+                #current_end_node = ordered_end_nodes[0]
+
+            else:
                 break
-            current_end_node = end_nodes[np.argmin(end_nodes_dist_to_j)]
-#             if print_flag:
-#                 print(f"   insdie if statement ordered_end_nodes = {ordered_end_nodes}")
-                
-            #current_end_node = ordered_end_nodes[0]
             
-        else:
-            break
+    G = xu.remove_selfloops(G)
     if print_flag:
         print(f"Done cleaning networkx graph with {paths_removed} paths removed")
     if return_skeleton:
-        return get_skeleton_from_graph(G)
+        return convert_graph_to_skeleton(G)
     else:
         return G
     
@@ -1351,7 +1753,7 @@ def skeletonize_connected_branch(current_mesh,
                                                             significant_poisson_skeleton,
                                                             buffer=mesh_subtraction_buffer,
                                                             bbox_ratio=1.2,
-                                                            distance_threshold=significant_poisson_skeleton,
+                                                            distance_threshold=mesh_subtraction_distance_threshold,
                                                             significance_threshold=boolean_significance_threshold,
                                                             print_flag=False
                                                            )
@@ -1854,3 +2256,821 @@ def skeletonize_neuron(main_mesh_total,
     
     print(f"\n\n\n\nTotal time for whole skeletonization of neuron = {time.time() - global_time}")
     return new_cleaned_skeleton
+
+
+
+# ------ Functions to help with the compartment ---- #
+# converted into a function
+import networkx_utils as xu
+import networkx as nx
+
+def get_ordered_branch_nodes_coordinates(skeleton_graph,nodes=False,coordinates=True):
+
+    """Purpose: want to get ordered skeleton coordinates:
+    1) get both end nodes
+    2) count shortest path between them (to get order)
+    3) then use the get node attributes function
+
+    """
+    #find the 2 endpoints:
+    sk_graph_clean = xu.remove_selfloops(skeleton_graph)
+    enpoints = [k for k,v in dict(sk_graph_clean.degree).items() if v == 1]
+    #print(f"enpoints= {enpoints}")
+    if len(enpoints) != 2:
+        nx.draw(sk_graph_clean)
+        print(f"sk_graph_clean.degree = {dict(sk_graph_clean.degree).items() }")
+        raise Exception("The number of endpoints was not 2 for a branch")
+
+    # gets the shortest path
+    shortest_path = nx.shortest_path(sk_graph_clean,enpoints[0],enpoints[1])
+    #print(f"shortest_path = {shortest_path}")
+
+    skeleton_node_coordinates = xu.get_node_attributes(skeleton_graph,node_list=shortest_path)
+    #print(f"skeleton_node_coordinates = {skeleton_node_coordinates}")
+
+    if nodes==False and coordinates==True:
+        return skeleton_node_coordinates
+    elif nodes==True and coordinates==False:
+        return shortest_path
+    elif nodes==True and coordinates==True:
+        return shortest_path,skeleton_node_coordinates
+    else:
+        raise Exception("neither nodes or coordinates set to return from get_ordered_branch_nodes_coordinates")
+
+
+def split_skeleton_into_edges(current_skeleton):
+    """
+    Purpose: Will split a skeleton into a list of skeletons where each skeleton is just
+    one previous edge of the skeleton before
+    
+    Example of how to use: 
+    
+    returned_split = split_skeleton_into_edges(downsampled_skeleton)
+    print(len(returned_split), downsampled_skeleton.shape)
+    returned_split
+    
+    """
+    
+    total_skeletons = [k for k in current_skeleton]
+    return total_skeletons
+    
+        
+def decompose_skeleton_to_branches(current_skeleton,
+                                   max_branch_distance=-1,
+                                  skip_branch_threshold=20000,
+                                  ):
+    """
+    Example of how to run: 
+    elephant_skeleton = sk.read_skeleton_edges_coordinates("../test_neurons/elephant_skeleton.cgal")
+    elephant_skeleton_branches = sk.decompose_skeleton_to_branches(elephant_skeleton)
+    sk.graph_skeleton_and_mesh(other_skeletons=[sk.stack_skeletons(elephant_skeleton_branches)])
+    
+    ***** Future error possibly: there could be issues in the future where had triangles of degree > 2 in your skeleton******
+    """
+    
+    if type(current_skeleton) not in [type(nx.Graph()),type(xu.GraphOrderedEdges())]:
+        el_sk_graph = convert_skeleton_to_graph(current_skeleton)
+    else:
+        el_sk_graph = current_skeleton
+    
+    
+    
+    el_sk_graph = xu.remove_selfloops(el_sk_graph)
+    degree_dict = dict(el_sk_graph.degree)
+    branch_nodes = [k for k,v in degree_dict.items() if v <= 2]
+    seperated_branch_graph = el_sk_graph.subgraph(branch_nodes)
+    
+    branch_skeletons = []
+    max_cycle_iterations = 1000
+
+    seperated_branch_graph_comp = list(nx.connected_components(seperated_branch_graph))
+    # now add back the nodes that were missing for each branch and collect all of the skeletons
+    for curr_branch in seperated_branch_graph_comp:
+        """
+        new method of decomposing that avoids keeping loops (but will error if getting rid of large loop)
+        
+        # old way 
+        all_neighbors = [xu.get_neighbors(el_sk_graph,n) for n in curr_branch] 
+        all_neighbors.append(list(curr_branch))
+        total_neighbors = np.unique(np.hstack(all_neighbors))
+        branch_subgraph = el_sk_graph.subgraph(total_neighbors)
+        branch_skeletons.append(sk.convert_graph_to_skeleton(branch_subgraph))
+        
+        New method: only if the two endpoints are connected together, then we give 
+        back a skeleton just of those endpoints (so this will skip the current branch alltogether)
+        --> but if skipping a branch that is too big then error
+        - else do the old method
+        
+        """
+        
+        all_neighbors = [xu.get_neighbors(el_sk_graph,n) for n in curr_branch] 
+        all_neighbors.append(list(curr_branch))
+        total_neighbors = np.unique(np.hstack(all_neighbors))
+        
+        #check to see if the t junctions are connected
+        high_degree_neigh = [k for k in total_neighbors if degree_dict[k]>2]
+        if len(high_degree_neigh) > 2:
+            raise Exception("Too many high degree nodes found in branch of decomposition")
+        if len(high_degree_neigh) == 2:
+            if high_degree_neigh[1] in xu.get_neighbors(el_sk_graph,high_degree_neigh[0]):
+                print("high-degree endpoints were connected so just using that connection")
+                
+                #check that what skipping isn't too big
+                print(f"curr_branch = {curr_branch}")
+                if len(curr_branch) >= 2:
+                    branch_subgraph = el_sk_graph.subgraph(list(curr_branch))
+                    skip_distance = sk.calculate_skeleton_distance( sk.convert_graph_to_skeleton(branch_subgraph))
+                    if  skip_distance > skip_branch_threshold:
+                        raise Exception(f"Branch that we are skipping is too large with skip distance: {skip_distance}")
+
+                #save this for later when add back all high degree branches that are connected
+#                 branch_skeletons.append((xu.get_node_attributes(el_sk_graph,attribute_name="coordinates"
+#                                                                 ,node_list=high_degree_neigh,
+#                                                                return_array=True)).reshape(1,2,3))
+                continue
+
+        
+        
+        
+        
+        branch_subgraph = el_sk_graph.subgraph(total_neighbors)
+        #attempting to eliminate any cycles
+        branch_subgraph = xu.remove_cycle(branch_subgraph)
+        branch_skeletons.append(sk.convert_graph_to_skeleton(branch_subgraph))
+        
+    #observation: seem to be losing branches that have two high degree nodes connected to each other and no other loop around it
+        
+    #add back all of the high degree branches that form subgraphs
+    high_degree_branch_nodes = [k for k,v in degree_dict.items() if v > 2]
+    seperated_branch_graph = el_sk_graph.subgraph(high_degree_branch_nodes)
+    #get the connected components
+    high_degree_conn_comp = nx.connected_components(seperated_branch_graph)
+    
+    """
+    Here is where need to make a decision about what to do with high degree nodes: 
+    I say just split all of the edges just into branches and then problem is solved (1 edge branches)
+    """
+    
+    
+    for c_comp in high_degree_conn_comp:
+        if len(c_comp) >= 2:
+            #add the subgraph to the branches
+            branch_subgraph = el_sk_graph.subgraph(list(c_comp))
+            branch_subgraph = nx. nx.minimum_spanning_tree(branch_subgraph)
+            #and constant loop that check for cycle in this complexand if there is one then delete a random edge from the cycle
+
+            """
+            Might have to add in more checks for more complicated high degree node complexes
+
+            """
+            
+            #new method that will delete any cycles might find in the branches
+        
+            branch_subgraph = xu.remove_cycle(branch_subgraph)
+            high_degree_branch_complex = sk.convert_graph_to_skeleton(branch_subgraph)
+            seperated_high_degree_edges = split_skeleton_into_edges(high_degree_branch_complex)
+                    
+            #branch_skeletons.append(sk.convert_graph_to_skeleton(branch_subgraph)) #old way
+            branch_skeletons += seperated_high_degree_edges
+            
+            
+            #check if there every was a cycle: 
+            
+    
+    if max_branch_distance > 0:
+        for br in branch_skeletons:
+            sk.resize_skeleton_branch()
+    
+    for br in branch_skeletons:
+        try:
+            #print("Testing for cycle")
+            edges_in_cycle = nx.find_cycle(sk.convert_skeleton_to_graph(br))
+        except:
+            pass
+        else:
+            raise Exception("There was a cycle found in the branch subgraph")
+    return branch_skeletons
+
+def convert_branch_graph_to_skeleton(skeleton_graph):
+    """ Want an ordered skeleton that is only a line 
+    Pseudocode: 
+    1) Get the ordered node coordinates
+    2) Create an edge array like [(0,1),(1,2).... (n_nodes-1,n_nodes)]
+    3) index the edges intot he node coordinates and return
+    """
+    skeleton_node_coordinates = get_ordered_branch_nodes_coordinates(skeleton_graph)
+    #print(f"skeleton_node_coordinates.shape = {skeleton_node_coordinates.shape}")
+    s = np.arange(0,len(skeleton_node_coordinates)).T
+    edges = np.vstack([s[:-1],s[1:]]).T
+    return skeleton_node_coordinates[edges]    
+
+
+# def divide_branch(curr_branch_skeleton,
+#                            segment_width):
+#     """
+#     When wanting to divide up one branch into multiple branches that 
+#     don't exceed a certain size
+    
+#     Pseudocode: 
+#     1) Resize the skee
+    
+#     """
+
+def resize_skeleton_branch(
+                            curr_branch_skeleton,
+                           segment_width = 0,
+                          n_segments = 0,
+                            print_flag=False):
+    
+    """
+    sk = reload(sk)
+    cleaned_skeleton = sk.resize_skeleton_branch(curr_branch_skeleton,segment_width=1000)
+
+    sk.graph_skeleton_and_mesh(other_meshes=[curr_branch_mesh],
+                              other_skeletons=[cleaned_skeleton])
+    """
+    
+    if segment_width<=0 and n_segments<=0:
+        raise Exception("Both segment_width and n_segments are non-positive")
+    
+    
+    #curr_branch_nodes_coordinates = np.vstack([curr_branch_skeleton[:,0,:].reshape(-1,3),curr_branch_skeleton[-1,1,:].reshape(-1,3)])
+    #print(f"curr_branch_nodes_coordinates = {curr_branch_nodes_coordinates}")  
+
+    #final product of this is it gets a skeleton that goes in a line from one endpoint to the other 
+    #(because skeleton can possibly be not ordered)
+    skeleton_graph = sk.convert_skeleton_to_graph(curr_branch_skeleton)
+    skeleton_node_coordinates = get_ordered_branch_nodes_coordinates(skeleton_graph)
+    cleaned_skeleton = convert_branch_graph_to_skeleton(skeleton_graph)
+
+    # #already checked that these were good                 
+    # print(f"skeleton_node_coordinates = {skeleton_node_coordinates}")
+    # print(f"cleaned_skeleton = {cleaned_skeleton}")
+
+
+    # gets the distance markers of how far have traveled from end node for each node
+    seg_bins = np.hstack([np.array([0]),sk.calculate_skeleton_segment_distances(cleaned_skeleton,cumsum=True)])
+
+    if n_segments > 0:
+            segment_width = seg_bins[-1]/n_segments #sets the width to 
+            if print_flag:
+                print(f"segment_width = {segment_width}")
+    else:
+        if segment_width>seg_bins[-1]:
+            #print("Skeletal width required was longer than the current skeleton so just returning the endpoints")
+            return np.vstack([cleaned_skeleton[0][0],cleaned_skeleton[-1][-1]]).reshape(1,2,3)
+    
+
+    #gets the distance of each segment
+    segment_widths = sk.calculate_skeleton_segment_distances(cleaned_skeleton,cumsum=False)
+    #print(f"total_distance = {sk.calculate_skeleton_distance(cleaned_skeleton)}")
+
+    n_full_segs = int(seg_bins[-1]/segment_width)
+    new_seg_endpoints = np.arange(segment_width,segment_width*n_full_segs+0.01,segment_width)
+
+    if new_seg_endpoints[-1] > seg_bins[-1]:
+        raise Exception("End of new_seg_endpoints is greater than original skeleton ")
+
+    #accounts for the perfect fit
+    if new_seg_endpoints[-1] == seg_bins[-1]:
+        #print("exact match so eliminating last new bin")
+        new_seg_endpoints = new_seg_endpoints[:-1] #remove the last one because will readd it back
+
+    #print(f"seg_bins = {seg_bins}")
+    #print(f"new_seg_endpoints = {new_seg_endpoints}")
+
+    #getting the vertices
+
+    """
+    3) for each new segment endpoint, 
+    a) calculate between which two existing skeleton segment end points it would exist
+    (using just a distnace measurement from each end point to the next)
+    b)calculate the coordinate that is a certain distance in middle based on which endpoints between
+
+    new_vector * (new_seg_endpoint - lower_bin_distance)/seg_width + lower_bin_vector
+    # """
+
+    bin_indices = np.digitize(new_seg_endpoints, seg_bins)
+    #print(f"bin_indices = {bin_indices}")
+    # print(f"bin_indices = {bin_indices}")
+    # print(f"seg_bins[bin_indices-1]= {seg_bins[bin_indices-1]}")
+    # print(f"new_seg_endpoints - seg_bins[bin_indices-1] = {(new_seg_endpoints - seg_bins[bin_indices-1]).astype('int')}")
+    #print(f"skeleton_node_coordinates (SHOULD BE ORDERED) = {skeleton_node_coordinates}")
+    new_coordinates = (((skeleton_node_coordinates[bin_indices] - skeleton_node_coordinates[bin_indices-1])
+                       *((new_seg_endpoints - seg_bins[bin_indices-1])/segment_widths[bin_indices-1]).reshape(-1,1)) + skeleton_node_coordinates[bin_indices-1])
+
+    #print(f"new_coordinates = {new_coordinates.shape}")
+
+    #add on the ending coordinates
+    final_new_coordinates = np.vstack([skeleton_node_coordinates[0].reshape(-1,3),new_coordinates,skeleton_node_coordinates[-1].reshape(-1,3)])
+    #print(f"final_new_coordinates = {final_new_coordinates.shape}")
+
+    #make a new skeleton from the coordinates
+    new_skeleton = np.stack((final_new_coordinates[:-1],final_new_coordinates[1:]),axis=1)
+    if print_flag:
+        print(f"new_skeleton = {new_skeleton.shape}")
+
+    return new_skeleton
+
+
+from scipy.spatial.distance import pdist,squareform
+def skeleton_graph_nodes_to_group(skeleton_grpah):
+    """
+    Checks that no nodes in graph are in the same coordinates and need to be combined
+    
+    Example Use Case: 
+    
+    example_skeleton = current_mesh_data[0]["branch_skeletons"][0]
+    skeleton_grpah = sk.convert_skeleton_to_graph(example_skeleton)
+    limb_nodes_to_group = sk.skeleton_graph_nodes_to_group(skeleton_grpah)
+    limb_nodes_to_group
+
+    #decompose the skeleton and then recompose and see if any nodes to group
+    decomposed_branches = sk.decompose_skeleton_to_branches(example_skeleton)
+    decomposed_branches_stacked = sk.stack_skeletons(example_skeleton)
+    restitched_decomposed_skeleton = sk.convert_graph_to_skeleton(sk.convert_skeleton_to_graph(decomposed_branches_stacked))
+    sk.skeleton_graph_nodes_to_group(restitched_decomposed_skeleton)
+
+    #shows that the restitched skeleton is still just one connected componet
+    connected_components = nx.connected_components(sk.convert_skeleton_to_graph(decomposed_branches_stacked))
+    len(list(connected_components))
+
+    sk.graph_skeleton_and_mesh(other_skeletons = [restitched_decomposed_skeleton])
+    
+    
+    """
+    if type(skeleton_grpah)  not in [type(nx.Graph()),type(xu.GraphOrderedEdges())]:
+        skeleton_grpah = convert_skeleton_to_graph(skeleton_grpah)
+    #get all of the vertices
+    coordinates = xu.get_node_attributes(skeleton_grpah,attribute_name="coordinates")
+    #get the distances between coordinates
+    distance_matrix = nu.get_coordinate_distance_matrix(coordinates)
+    
+    #great a graph out of the distance matrix with a value of 0
+    nodes_to_combine = nx.from_edgelist(np.array(np.where(distance_matrix==0)).T)
+    #clean graph for any self loops
+    nodes_to_combine  = xu.remove_selfloops(nodes_to_combine)
+    
+    grouped_nodes = nx.connected_components(nodes_to_combine)
+    nodes_to_group = [k for k in list(grouped_nodes) if len(k)>1]
+    
+    return nodes_to_group
+
+def recompose_skeleton_from_branches(decomposed_branches):
+    """
+    Takes skeleton branches and stitches them back together without any repeating nodes
+    """
+    decomposed_branches_stacked = sk.stack_skeletons(decomposed_branches)
+    restitched_decomposed_skeleton = sk.convert_graph_to_skeleton(sk.convert_skeleton_to_graph(decomposed_branches_stacked))
+    return restitched_decomposed_skeleton
+
+def clean_skeleton_with_decompose(distance_cleaned_skeleton):
+    """
+    Purpose: to eliminate the loops that are cleaned in the decompose process from the skeleton and then reconstruct
+    Pseudocode: 
+    1) decompose skeleton
+    2) recompose skeleton (was checked that no nodes to recombine)
+    
+    """
+    branches = decompose_skeleton_to_branches(distance_cleaned_skeleton)
+    return recompose_skeleton_from_branches(branches)
+
+def divide_branch(curr_branch_skeleton,
+                            segment_width = 1000,
+                           equal_width=True,
+                           n_segments = 0):
+
+
+    """
+    When wanting to divide up one branch into multiple branches that 
+    don't exceed a certain size
+
+    Example of how to use: 
+    
+    sk = reload(sk)
+
+    curr_index = 1
+    ex_branch = total_branch_skeletons[curr_index]
+    ex_mesh = total_branch_meshes[curr_index]
+    # sk.graph_skeleton_and_mesh(other_skeletons=[ex_branch],
+    #                           other_meshes=[ex_mesh])
+
+
+
+    #there were empty arrays which is causing the error!
+    returned_branches = sk.divide_branch(curr_branch_skeleton=ex_branch,
+                                segment_width = 1000,
+                                equal_width=False,
+                                n_segments = 0)
+
+    print(len(returned_branches))
+    lengths = [sk.calculate_skeleton_distance(k) for k in returned_branches]
+    print(f"lengths = {lengths}")
+
+
+    sk.graph_skeleton_and_mesh(
+                                other_skeletons=returned_branches[:10],
+                            other_skeletons_colors=["black"],
+                              #other_skeletons=[ex_branch],
+                              other_meshes=[ex_mesh])
+
+    """
+
+    if segment_width<=0 and n_segments<=0:
+        raise Exception("Both segment_width and n_segments are non-positive")
+
+    skeleton_graph = sk.convert_skeleton_to_graph(curr_branch_skeleton)
+    skeleton_node_coordinates = get_ordered_branch_nodes_coordinates(skeleton_graph)
+    cleaned_skeleton = convert_branch_graph_to_skeleton(skeleton_graph)
+
+    seg_bins = np.hstack([np.array([0]),sk.calculate_skeleton_segment_distances(cleaned_skeleton,cumsum=True)])
+
+
+
+    if n_segments > 0:
+            segment_width = seg_bins[-1]/n_segments
+    else:
+        if segment_width>seg_bins[-1]:
+            #print("Skeletal width required was longer than the current skeleton so just returning the endpoints")
+            return [np.vstack([cleaned_skeleton[0][0],cleaned_skeleton[-1][-1]]).reshape(1,2,3)]
+
+
+    segment_widths = sk.calculate_skeleton_segment_distances(cleaned_skeleton,cumsum=False)
+    #print(f"total_distance = {sk.calculate_skeleton_distance(cleaned_skeleton)}")
+
+    if equal_width and n_segments <= 0:
+        #print("making all of the branch segments equal width")
+        n_segments_that_fit = seg_bins[-1]/segment_width
+        #print(f"n_segments_that_fit = {n_segments_that_fit}")
+        if n_segments_that_fit > int(n_segments_that_fit): #if there is some leftover 
+            segment_width = seg_bins[-1]/np.ceil(n_segments_that_fit)
+            #print(f"New segment width in order to make them equal = {segment_width}\n")
+
+    n_full_segs = int(seg_bins[-1]/segment_width)
+    #print(f"n_full_segs = {n_full_segs}")
+
+    #old way
+    new_seg_endpoints = np.arange(segment_width,segment_width*n_full_segs+0.01,segment_width)
+    
+    #print(f"new_seg_endpoints[-1] - seg_bins[-1] = {new_seg_endpoints[-1] - seg_bins[-1]}")
+    if new_seg_endpoints[-1] > seg_bins[-1]:
+        if new_seg_endpoints[-1] - seg_bins[-1] > 0.01:
+            raise Exception("End of new_seg_endpoints is greater than original skeleton ")
+        else:
+            new_seg_endpoints[-1] =  seg_bins[-1]
+
+    #accounts for the perfect fit
+    if new_seg_endpoints[-1] == seg_bins[-1]:
+        #print("exact match so eliminating last new bin")
+        new_seg_endpoints = new_seg_endpoints[:-1] #remove the last one because will readd it back
+
+    #print(f"seg_bins = {seg_bins}")
+    #print(f"new_seg_endpoints = {new_seg_endpoints}")
+
+    #getting the vertices
+
+    """
+    3) for each new segment endpoint, 
+    a) calculate between which two existing skeleton segment end points it would exist
+    (using just a distnace measurement from each end point to the next)
+    b)calculate the coordinate that is a certain distance in middle based on which endpoints between
+
+    new_vector * (new_seg_endpoint - lower_bin_distance)/seg_width + lower_bin_vector
+    # """
+
+    bin_indices = np.digitize(new_seg_endpoints, seg_bins)
+
+    new_coordinates = (((skeleton_node_coordinates[bin_indices] - skeleton_node_coordinates[bin_indices-1])
+                       *((new_seg_endpoints - seg_bins[bin_indices-1])/segment_widths[bin_indices-1]).reshape(-1,1)) + skeleton_node_coordinates[bin_indices-1])
+
+    #these should be the same size
+    #     print(f"bin_indices = {bin_indices}")
+    #     print(f"new_coordinates = {new_coordinates}")
+    #     return bin_indices,new_coordinates
+
+    """
+    Using the bin_indices and new_coordinates construct a list of branches with the original vertices plus the new cuts
+    Pseudocode:
+
+    indices mean that they are greater than or equal to the bin below but absolutely less than the bin indices value
+    --> need to make sure that the new cut does not fall on current cut
+    --> do this by checking that the last node before the cut isn't equal to the cut
+
+    1) include all of the skeleton points but not including the bin idexed numer
+    """
+    returned_branches = []
+    skeleton_node_coordinates #these are the original coordinates
+    for z,(curr_bin,new_c) in enumerate(zip(bin_indices,new_coordinates)):
+        if z==0:
+#             print(f"curr_bin = {curr_bin}")
+#             print(f"bin_indices = {bin_indices}")
+            
+            previous_nodes = skeleton_node_coordinates[:curr_bin]
+#             print(f"previous_nodes = {previous_nodes}")
+#             print(f"previous_nodes[-1] = {previous_nodes[-1]}")
+#             print(f"new_c = {new_c}")
+#             print(f"np.linalg.norm(previous_nodes[:-1]- new_c) = {np.linalg.norm(previous_nodes[-1]- new_c)}")
+            if np.linalg.norm(previous_nodes[-1]- new_c) > 0.001:
+                #print("inside linalg_norm")
+                previous_nodes = np.vstack([previous_nodes,new_c.reshape(-1,3)])
+            
+            #print(f"previous_nodes = {previous_nodes}")
+            #now create the branch
+            returned_branches.append(np.stack((previous_nodes[:-1],previous_nodes[1:]),axis=1).reshape(-1,2,3))
+            #print(f"returned_branches = {returned_branches}")
+        else:
+            #if this was not the first branch
+            previous_nodes = new_coordinates[z-1].reshape(-1,3)
+            if curr_bin > bin_indices[z-1]:
+                previous_nodes = np.vstack([previous_nodes,skeleton_node_coordinates[bin_indices[z-1]:curr_bin].reshape(-1,3)])
+            if np.linalg.norm(previous_nodes[-1]- new_c) > 0.001:
+                previous_nodes = np.vstack([previous_nodes,new_c.reshape(-1,3)])
+
+            returned_branches.append(np.stack((previous_nodes[:-1],previous_nodes[1:]),axis=1).reshape(-1,2,3))
+
+
+    #     if np.array_equal(returned_branches[-1],np.array([], dtype="float64").reshape(-1,2,3)):
+    #         print(f"previous_nodes= {previous_nodes}")
+    #         print(f"new_c = {new_c}")
+    #         print(f"curr_bin = {curr_bin}")
+    #         print(f"bin_indices = {bin_indices}")
+    #         print(f"z = {z}")
+    #         raise Exception("stopping")
+
+    #add this last section to the skeleton
+    if np.linalg.norm(new_c - skeleton_node_coordinates[-1]) > 0.001: #so the last node has not been added yet
+        previous_nodes = new_coordinates[-1].reshape(-1,3)
+        if bin_indices[-1]<len(seg_bins):
+            previous_nodes = np.vstack([previous_nodes,skeleton_node_coordinates[bin_indices[-1]:len(skeleton_node_coordinates)].reshape(-1,3)])
+        else:
+            previous_nodes = np.vstack([previous_nodes,skeleton_node_coordinates[-1].reshape(-1,3)])
+        returned_branches.append(np.stack((previous_nodes[:-1],previous_nodes[1:]),axis=1).reshape(-1,2,3))
+    
+    #check 1: that the first and last of original branch is the same as the decomposed
+    first_coord = returned_branches[0][0][0]
+    last_coord = returned_branches[-1][-1][-1]
+    
+#     print(f"first original coord = {skeleton_node_coordinates[0]}")
+#     print(f"last original coord = {skeleton_node_coordinates[-1]}")
+#     print(f"first_coord = {first_coord}")
+#     print(f"last_coord = {last_coord}")
+    
+    
+    if not np.array_equal(skeleton_node_coordinates[0],first_coord):
+        print(f"skeleton_node_coordinates = {skeleton_node_coordinates}")
+        print(f"first_coord = {first_coord}")
+        raise Exception("First coordinate does not match")
+        
+    if not np.array_equal(skeleton_node_coordinates[-1],last_coord):
+        print(f"skeleton_node_coordinates = {skeleton_node_coordinates}")
+        print(f"last_coord = {last_coord}")
+        raise Exception("Last coordinate does not match")
+
+    
+    #check 2: that it is all one connected branch
+    total_skeleton = sk.stack_skeletons(returned_branches)
+    total_skeleton_graph = sk.convert_skeleton_to_graph(total_skeleton)
+    n_comps = nx.number_connected_components(total_skeleton_graph)
+    
+    
+    #print(f"Number of connected components is {n_comps}")
+    
+    if n_comps > 1:
+        raise Exception(f"Number of connected components is {n_comps}")
+
+    print(f"Total number of returning branches = {len(returned_branches)}")
+    return returned_branches
+
+# -------- for the mesh correspondence -------
+# def waterfill_labeling(
+#                 total_mesh_correspondence,
+#                  submesh_indices,
+#                  total_mesh=None,
+#                 total_mesh_graph=None,
+#                  propagation_type="random",
+#                 max_iterations = 1000,
+#                 max_submesh_threshold = 1000
+#                 ):
+#     """
+#     Pseudocode:
+#     1) check if the submesh you are propagating labels to is too large
+#     2) for each unmarked face get the neighbors of all of the faces, and for all these neighbors get all the labels
+#     3) if the neighbors label is not empty. depending on the type of progation type then pick the winning label
+#     a. random: just randomly choose from list
+#     b. .... not yet implemented
+#     4) revise the faces that are still empty and repeat process until all faces are empty (have a max iterations number)
+#     """
+    
+#     if not total_mesh_graph:
+#         #finding the face adjacency:
+#         total_mesh_graph = nx.from_edgelist(total_mesh.face_adjacency)
+    
+    
+    
+#     if len(submesh_indices)> max_submesh_threshold:
+#         raise Exception(f"The len of the submesh ({len(submesh_indices)}) exceeds the maximum threshold of {max_submesh_threshold} ")
+    
+#     #check that these are unmarked
+#     curr_unmarked_faces = [k for k in submesh_indices if total_mesh_correspondence[k] == -1] 
+    
+    
+#     if len(curr_unmarked_faces)<len(submesh_indices):
+#         raise Exception(f"{len(submesh_indices)-len(curr_unmarked_faces)} submesh faces were already labeled before waterfill_labeling started")
+    
+#     for i in range(max_iterations):
+#         #s2) for each unmarked face get the neighbors of all of the faces, and for all these neighbors get all the labels
+#         unmarked_faces_neighbors = [xu.get_neighbors(total_mesh_graph,j) for j in curr_unmarked_faces] #will be list of lists
+#         #print(f"unmarked_faces_neighbors = {unmarked_faces_neighbors}")
+#         unmarked_face_neighbor_labels = [np.array([total_mesh_correspondence[curr_neighbor] for curr_neighbor in z]) for z in unmarked_faces_neighbors]
+#         #print(f"unmarked_face_neighbor_labels = {unmarked_face_neighbor_labels}")
+        
+#         if len(unmarked_face_neighbor_labels) == 0:
+#             print(f"curr_unmarked_faces = {curr_unmarked_faces}")
+#             print(f"i = {i}")
+#             print(f"unmarked_faces_neighbors = {unmarked_faces_neighbors}")
+#             print(f"unmarked_face_neighbor_labels = {unmarked_face_neighbor_labels}")
+            
+#         #check if there is only one type of label and if so then autofil
+#         total_labels = list(np.unique(np.concatenate(unmarked_face_neighbor_labels)))
+        
+#         if -1 in total_labels:
+#             total_labels.remove(-1)
+        
+#         if len(total_labels) == 0:
+#             raise Exception("total labels does not have any marked neighbors")
+#         elif len(total_labels) == 1:
+#             print("All surrounding labels are the same so autofilling the remainder of unlabeled labels")
+#             for gg in curr_unmarked_faces:
+#                 total_mesh_correspondence[gg] = total_labels[0]
+#             break
+#         else:
+#             #if there are still one or more labels surrounding our unlabeled region
+#             for curr_face,curr_neighbors in zip(curr_unmarked_faces,unmarked_face_neighbor_labels):
+#                 curr_neighbors = curr_neighbors[curr_neighbors != -1]
+#                 if len(curr_neighbors) > 0:
+#                     if propagation_type == "random":
+#                         total_mesh_correspondence[curr_face] = np.random.choice(curr_neighbors)
+#                     else:
+#                         raise Exception("Not implemented propagation_type")
+        
+#         # now replace the new curr_unmarked faces
+#         curr_unmarked_faces = [k for k in submesh_indices if total_mesh_correspondence[k] == -1] #old dict way
+        
+        
+#         if len(curr_unmarked_faces) == 0:
+#             print(f"breaking out of loop because zero unmarked faces left after {i} iterations")
+#             break
+        
+    
+#     #check that no more unmarked faces or error
+#     end_unmarked_faces = [k for k in submesh_indices if total_mesh_correspondence[k] == -1]
+    
+#     if len(end_unmarked_faces) > 0:
+#         raise Exception(f"After {i+1} iterations (with max_iterations = {max_iterations} there were still {len(end_unmarked_faces)} faces")
+        
+    
+#     return total_mesh_correspondence
+
+
+# ----- functions to help with the Neuron class ---- #
+def find_branch_endpoints(db):
+    db_graph = sk.convert_skeleton_to_graph(db)
+    end_node_coordinates = xu.get_node_attributes(db_graph,node_list=xu.get_nodes_of_degree_k(db_graph,1))
+
+    if len(end_node_coordinates) != 2:
+        raise Exception("Not exactly 2 end nodes in the passed branch")
+    else:
+        return end_node_coordinates
+    
+    
+
+''' #Old way that does not account for there being branches with the same endpoints
+def branches_to_concept_graph(curr_branch_skeletons,
+                             starting_coordinate,
+                             max_iterations= 10000):
+    """
+    Will change a list of branches into 
+    """
+    
+    start_time = time.time()
+    processed_nodes = []
+    edge_endpoints_to_process = []
+    concept_network_edges = []
+
+    """
+    If there is only one branch then just pass back a one-node graph 
+    with no edges
+    """
+    if len(curr_branch_skeletons) == 0:
+        raise Exception("Passed no branches to be turned into concept network")
+    
+    if len(curr_branch_skeletons) == 1:
+        concept_graph = xu.GraphOrderedEdges()
+        concept_graph.add_node(0)
+        
+        starting_node = 0
+        attrs = {starting_node:{"starting_coordinate":starting_coordinate}}
+        xu.set_node_attributes_dict(concept_graph,attrs)
+        return concept_graph
+
+    # 0) convert each branch to one segment and build a graph from it
+    
+    
+    curr_branch_meshes_downsampled = [sk.resize_skeleton_branch(b,n_segments=1) for b in curr_branch_skeletons]
+    
+    """
+    In order to solve the problem that once resized there could be repeat edges
+    
+    Pseudocode: 
+    1) predict the branches that are repeats and then create a map 
+    of the non-dom (to be replaced) and dominant (the ones to replace)
+    2) Get an arange list of the branch idxs and then delete the non-dominant ones
+    3) Run the whole concept map process
+    4) At the end for each non-dominant one, at it in (with it's idx) and copy
+    the edges of the dominant one that it was mapped to
+    
+    
+    """
+    
+    
+    branches_graph = sk.convert_skeleton_to_graph(sk.stack_skeletons(curr_branch_meshes_downsampled)) #can recover the original skeleton
+    
+
+
+    #************************ need to just make an edges lookup dictionary*********#
+
+
+    #1) Identify the starting node on the starting branch
+    starting_node = xu.get_nodes_with_attributes_dict(branches_graph,dict(coordinates=starting_coordinate))
+    print(f"At the start, starting_node = {starting_node}")
+    if len(starting_node) != 1:
+        raise Exception(f"The number of starting nodes found was not exactly one: {starting_node}")
+    #1b) Add all edges incident and their other node label to a list to check (add the first node to processed nodes list)
+    incident_edges = xu.node_to_edges(branches_graph,starting_node)
+    #print(f"incident_edges = {incident_edges}")
+    # #incident_edges_idx = edge_to_index(incident_edges)
+
+    # #adding them to the list to be processed
+    edge_endpoints_to_process = [(edges,edges[edges != starting_node ]) for edges in incident_edges]
+    processed_nodes.append(starting_node)
+
+    
+    for i in range(max_iterations):
+        #print(f"==\n\n On iteration {i}==")
+        if len(edge_endpoints_to_process) == 0:
+            print(f"edge_endpoints_to_process was empty so exiting loop after {i} iterations")
+            break
+
+        #2) Pop the edge edge number,endpoint of the stack
+        edge,endpt = edge_endpoints_to_process.pop(0)
+        #print(f"edge,endpt = {(edge,endpt)}")
+        #- if edge already been processed then continue
+        if endpt in processed_nodes:
+            #print(f"Already processed endpt = {endpt} so skipping")
+            continue
+        #a. Find all edges incident on this node
+        incident_edges = xu.node_to_edges(branches_graph,endpt)
+        #print(f"incident_edges = {incident_edges}")
+
+        considering_edges = [k for k in incident_edges if not np.array_equal(k,edge) and not np.array_equal(k,np.flip(edge))]
+        #print(f"considering_edges = {considering_edges}")
+        #b. Create edges from curent edge to those edges incident with it
+        concept_network_edges += [(edge,k) for k in considering_edges]
+
+        #c. Add the current node as processed
+        processed_nodes.append(endpt)
+
+        #d. For each edge incident add the edge and the other connecting node to the list
+        new_edge_processing = [(e,e[e != endpt ]) for e in considering_edges]
+        edge_endpoints_to_process = edge_endpoints_to_process + new_edge_processing
+        #print(f"edge_endpoints_to_process = {edge_endpoints_to_process}")
+
+    if len(edge_endpoints_to_process)>0:
+        raise Exception(f"Reached max_interations of {max_iterations} and the edge_endpoints_to_process not empty")
+
+    #flattening the connections so we can get the indexes of these edges
+    flattened_connections = np.array(concept_network_edges).reshape(-1,2)
+    orders = xu.get_edge_attributes(branches_graph,edge_list=flattened_connections)
+    #******
+    
+    concept_network_edges_fixed = np.array(orders).reshape(-1,2)
+
+    # # while 
+    # # edge_endpoints_to_process
+    #print(f"concept_network_edges_fixed = {concept_network_edges_fixed}")
+    concept_graph = xu.GraphOrderedEdges()
+    #print("type(concept_graph) = {type(concept_graph)}")
+    concept_graph.add_edges_from([k for k in concept_network_edges_fixed])
+    
+    #add the starting coordinate to the corresponding node
+    print(f"starting_node = {starting_node}")
+    attrs = {starting_node[0]:{"starting_coordinate":starting_coordinate}}
+    xu.set_node_attributes_dict(concept_graph,attrs)
+    
+    print(f"Total time for branches to concept conversion = {time.time() - start_time}\n")
+    
+    return concept_graph
+'''
+
+
+

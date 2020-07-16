@@ -413,7 +413,10 @@ def filter_away_inside_soma_pieces(
                             main_mesh_total,
                             pieces_to_test,
                             significance_threshold=2000,
-                            n_sample_points=3
+                            n_sample_points=3,
+                            required_outside_percentage = 0.9,
+                            print_flag = False,
+                            return_inside_pieces=False,
                             ):
     if type(main_mesh_total) != list:
         main_mesh_total = [main_mesh_total]
@@ -430,13 +433,14 @@ def filter_away_inside_soma_pieces(
         return pieces_to_test
     
     significant_pieces = [m for m in pieces_to_test if len(m.faces) > significance_threshold]
-
+    
     print(f"There were {len(significant_pieces)} pieces found after size threshold")
     if len(significant_pieces) <=0:
         print("THERE WERE NO MESH PIECES GREATER THAN THE significance_threshold")
         return []
     
     final_mesh_pieces = []
+    inside_pieces = []
     
     for i,mesh in enumerate(significant_pieces):
         outside_flag = True
@@ -455,19 +459,26 @@ def filter_away_inside_soma_pieces(
 
             #gets the 
             outside_percentage = sum(signed_distance <= 0)/n_sample_points
-            if outside_percentage < 0.9:
-                print(f"Mesh piece {i} inside mesh {j} :( ")
+            if outside_percentage < required_outside_percentage:
+                if print_flag: 
+                    print(f"Mesh piece {i} inside mesh {j} :( ")
                 outside_flag = False
+                inside_pieces.append(mesh)
                 break
         if outside_flag:
-            print(f"Mesh piece {i} OUTSIDE all meshes (corrected)")
+            if print_flag: 
+                print(f"Mesh piece {i} OUTSIDE all meshes (corrected)")
             final_mesh_pieces.append(mesh)
         
-                
-    return final_mesh_pieces
+    if return_inside_pieces:
+        return final_mesh_pieces,inside_pieces
+    else:
+        return final_mesh_pieces
 
 
 # subtacting the soma
+
+''' old version 
 def subtract_soma(current_soma,main_mesh,
                  significance_threshold=200,
                  distance_threshold = 550):
@@ -522,9 +533,83 @@ def subtract_soma(current_soma,main_mesh,
     print(f"mesh pieces in subtact soma AFTER the filtering inside pieces = {mesh_pieces}")
     print(f"Total Time for soma mesh cancellation = {np.round(time.time() - start_time,3)}")
     return mesh_pieces
+'''
 
+def subtract_soma(current_soma_list,main_mesh,
+                 significance_threshold=200,
+                 distance_threshold = 550,
+                 ):
+    if type(current_soma_list) == type(trimesh.Trimesh()):
+        current_soma_list = [current_soma_list]
+    
+    if type(current_soma_list) != list:
+        raise Exception("Subtract soma was not passed a trimesh object or list for it's soma parameter")
+
+        
+    print("\ninside Soma subtraction")
+    start_time = time.time()
+    current_soma = tu.combine_meshes(current_soma_list)
+    face_midpoints_soma = current_soma.triangles_center
+
+    all_bounds = [k.bounds for k in  current_soma_list]
+    
+
+    curr_mesh_bbox_restriction,faces_bbox_inclusion = (
+                    tu.bbox_mesh_restriction(main_mesh,
+                                            all_bounds ,
+                                            mult_ratio=1.3)
+    )
+
+    face_midpoints_neuron = curr_mesh_bbox_restriction.triangles_center
+
+    soma_kdtree = KDTree(face_midpoints_soma)
+
+    distances,closest_node = soma_kdtree.query(face_midpoints_neuron)
+
+    distance_passed_faces  = distances<distance_threshold
+
+    """ Older way of doing difference
+
+
+    faces_to_keep = np.array(list(set(np.arange(0,len(main_mesh.faces))).difference(set(faces_bbox_inclusion[distance_passed_faces]))))
+    """
+
+    #newer way: using numpy functions
+    faces_to_keep = np.setdiff1d(np.arange(len(main_mesh.faces)),
+                                    faces_bbox_inclusion[distance_passed_faces])
+
+    """
+    #didn't work
+    distance_passed_faces  = distances>=distance_threshold
+    faces_to_keep = faces_bbox_inclusion[distance_passed_faces]
+
+    """
+
+
+    without_soma_mesh = main_mesh.submesh([faces_to_keep],append=True)
+
+
+
+
+    #get the significant mesh pieces
+    mesh_pieces = tu.split_significant_pieces(without_soma_mesh,significance_threshold=significance_threshold)
+    print(f"mesh pieces in subtact soma BEFORE the filtering inside pieces = {mesh_pieces}")
+
+    current_mesh_pieces = filter_away_inside_soma_pieces(current_soma,mesh_pieces,
+                                         significance_threshold=significance_threshold,
+                                                        n_sample_points=5,
+                                                        required_outside_percentage=0.9)
+    print(f"mesh pieces in subtact soma AFTER the filtering inside pieces = {mesh_pieces}")
+    print(f"Total Time for soma mesh cancellation = {np.round(time.time() - start_time,3)}")
+    
+    
+    return mesh_pieces
 
 def find_soma_centroids(soma_mesh_list):
+    """
+    Will return a list of soma centers if given one mesh or list of meshes
+    the center is just found by averaging the vertices
+    """
     if type(soma_mesh_list) != list:
         soma_mesh_list = [soma_mesh_list]
     soma_mesh_list_centers = [np.array(np.mean(k.vertices,axis=0)).astype("float")
@@ -556,3 +641,36 @@ def find_soma_centroid_containing_meshes(soma_mesh_list_centers,
                 containing_mesh_indices[k] = np.argmin(min_distances_to_soma)
         
         return containing_mesh_indices
+    
+def grouping_containing_mesh_indices(containing_mesh_indices):
+    """
+    Purpose: To take a dictionary that maps the soma indiece to the 
+             mesh piece containing the indices: {0: 0, 1: 0}
+             
+             and to rearrange that to a dictionary that maps the mesh piece
+             to a list of all the somas contained inside of it 
+             
+    Pseudocode: 
+    1) get all the unique mesh pieces and create a dictionary with an empty list
+    2) iterate through the containing_mesh_indices dictionary and add each
+       soma index to the list of the containing mesh index
+    3) check that none of the lists are empty or else something has failed
+             
+    """
+    
+    unique_meshes = np.unique(list(containing_mesh_indices.values()))
+    mesh_groupings = dict([(i,[]) for i in unique_meshes])
+    
+    #2) iterate through the containing_mesh_indices dictionary and add each
+    #   soma index to the list of the containing mesh index
+    
+    for soma_idx, mesh_idx in containing_mesh_indices.items():
+        mesh_groupings[mesh_idx].append(soma_idx)
+    
+    #3) check that none of the lists are empty or else something has failed
+    len_lists = [len(k) for k in mesh_groupings.values()]
+    
+    if 0 in len_lists:
+        raise Exception("One of the lists is empty when grouping somas lists")
+        
+    return mesh_groupings

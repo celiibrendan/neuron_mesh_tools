@@ -1,0 +1,3 @@
+find /notebooks/neuron_mesh_tools/ -type f -name "*ipynb" -size +100000k -exec ls -lh {} \; | awk '{ print $9 ": " $5 }'
+
+Things need to add to gitignore .npz, .pkl

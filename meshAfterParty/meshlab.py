@@ -236,6 +236,7 @@ class Meshlab:
         if printout:
             print(command_to_run)
         subprocess_result = subprocess.run(command_to_run, shell=True,stdout=PIPE, stderr=PIPE)
+        #subprocess_result = subprocess.run(command_to_run, shell=True,stdout=PIPE, stderr=STDOUT)
         if subprocess_result.returncode != 0:
             print(f"\n---- meshlab output -----\n"
                  f"{subprocess_result.stdout.decode()}"
