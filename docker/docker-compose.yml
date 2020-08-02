@@ -1,0 +1,18 @@
+version: '2'
+services:
+  notebook:
+    image: celiib/neuron_mesh_tools:latest
+    build: 
+      context: .
+    env_file: .env
+    environment:
+      - DISPLAY=$DISPLAY
+      - XSOCK=/tmp/.X11-unix/X0
+    ports:
+      - "8891:8888"
+    volumes:
+      - ../../neuron_mesh_tools:/notebooks
+      - ../../meshAfterParty/meshAfterParty:/meshAfterParty
+      - ../../meshAfterParty/examples:/examples
+      - /mnt:/mnt
+
