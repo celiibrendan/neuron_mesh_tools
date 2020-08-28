@@ -1,6 +1,6 @@
 version: '2'
 services:
-  notebook:
+  notebook2:
     image: celiib/neuron_mesh_tools:latest
     build: 
       context: .

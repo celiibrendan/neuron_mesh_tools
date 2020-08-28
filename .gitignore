@@ -5,5 +5,5 @@
 *.mls
 *.npz
 *.pkl
-!*/spine_detection/*.off
-!*/test_objects/*
+#!*/spine_detection/*.off
+#!*/test_objects/*
