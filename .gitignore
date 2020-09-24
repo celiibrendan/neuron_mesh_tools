@@ -5,5 +5,7 @@
 *.mls
 *.npz
 *.pkl
-#!*/spine_detection/*.off
+*.pbz2
+!*/spine_detection/*.off
 #!*/test_objects/*
+!*12345_double_soma_meshafterparty_fixed_connectors_and_spines*
