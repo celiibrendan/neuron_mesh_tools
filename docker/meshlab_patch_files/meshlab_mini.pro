@@ -22,7 +22,7 @@ SUBDIRS       = common \
 #                meshlabplugins/edit_align \
 #                meshlabplugins/edit_manipulators \
 #                meshlabplugins/edit_select \
-#                meshlabplugins/filter_clean\
+                meshlabplugins/filter_clean\
 #                meshlabplugins/filter_colorize\
 #                meshlabplugins/filter_create\
                 meshlabplugins/filter_layer\
