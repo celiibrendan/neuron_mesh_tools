@@ -1,0 +1,26 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name:  soma-centroid-finder
+spec:
+  parallelism: 15
+  template:
+    spec:
+      restartPolicy: Never
+      hostNetwork: true
+      volumes: # Example volume mounting
+      - name: mnt # name for the volume to be reference in container volumeMounts
+        hostPath:
+          path: /mnt # Directory on the host machine to be mounted
+      containers:
+      - name: soma-centroid-finder-cont
+        image: at-docker.ad.bcm.edu:5000/decimation_skeletonization:latest
+        resources:
+          requests:
+            cpu: 5
+            memory: 1Gi
+        volumeMounts: # Container reference to volumes define above
+        - name: mnt # Name of the volume define above
+          mountPath: /mnt # Location of where to mount it in the container
+        command: ["/bin/bash"] # Entry point for the container
+        args: ["-c", "git clone https://github.com/celiibrendan/Complete_Pinky100_Pipeline.git && cd /notebooks/Complete_Pinky100_Pipeline/notebooks/Platinum/Platinum_Soma_Finder_vp2/ && chmod +x ./run_multiple_MultiSomaCentroidValidationVp4_DJ.py.sh && python3 py_run_shell.py && while true; do sleep 30; done; " ]
