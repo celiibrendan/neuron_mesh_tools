@@ -11,7 +11,7 @@ be used to pick which meshes to decimate based on the nuclei table
 """
 
 
-# In[1]:
+# In[ ]:
 
 
 from os import sys
@@ -27,7 +27,7 @@ du = reload(du)
 import time
 
 
-# In[2]:
+# In[ ]:
 
 
 import minfig
@@ -41,7 +41,7 @@ minnie,schema = du.configure_minnie_vm()
 
 # # Christos Setup
 
-# In[3]:
+# In[ ]:
 
 
 import datajoint as dj
@@ -64,27 +64,25 @@ import os
 from pathlib import Path
 
 
-# In[4]:
+# In[ ]:
 
 
-import meshlab
-meshlab.set_meshlab_port(current_port=None)
+from meshlab import Decimator
 temporary_folder = 'decimation_temp'
 meshlab_scripts = {}
 
 
-# In[5]:
+# In[ ]:
 
 
 from minfig.adapters import *
 
 
-# In[6]:
+# In[ ]:
 
 
 from minfig.minnie65_config import external_decimated_mesh_path
 external_decimated_mesh_path
-
 
 @minnie.schema
 class Decimation(dj.Computed):
@@ -134,7 +132,7 @@ class Decimation(dj.Computed):
         decimation_ratio = key['decimation_ratio']
 
         if decimation_ratio not in meshlab_scripts:
-            meshlab_scripts[decimation_ratio] = meshlab.Decimator(decimation_ratio, temporary_folder, overwrite=False)
+            meshlab_scripts[decimation_ratio] = Decimator(decimation_ratio, temporary_folder, overwrite=False)
         mls_func = meshlab_scripts[decimation_ratio]
 
         try:
@@ -164,13 +162,7 @@ class Decimation(dj.Computed):
 
 # # Experimenting with the relation
 
-# In[12]:
-
-
-(schema.jobs & "table_name='__decimation'").delete()
-
-
-# In[10]:
+# In[ ]:
 
 
 import random
