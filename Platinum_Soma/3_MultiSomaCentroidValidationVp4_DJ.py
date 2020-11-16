@@ -27,14 +27,14 @@ Pseudocode:
 
 
 # Testing 
-import datajoint as dj
-import numpy as np
-m65 = dj.create_virtual_module('m65', 'microns_minnie65_01')
-schema = dj.schema("microns_minnie65_01")
-dj.config["display.limit"] = 30
+    import datajoint as dj
+    import numpy as np
+    m65 = dj.create_virtual_module('m65', 'microns_minnie65_01')
+    schema = dj.schema("microns_minnie65_01")
+    dj.config["display.limit"] = 30
 
-import minfig
-minnie = minfig.configure_minnie(return_virtual_module=True)
+    import minfig
+    minnie = minfig.configure_minnie(return_virtual_module=True)
 
 
 # In[3]:
