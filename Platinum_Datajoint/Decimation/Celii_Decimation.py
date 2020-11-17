@@ -11,7 +11,7 @@ be used to pick which meshes to decimate based on the nuclei table
 """
 
 
-# In[1]:
+# In[ ]:
 
 
 from os import sys
@@ -27,10 +27,17 @@ du = reload(du)
 import time
 
 
-# In[2]:
+# In[ ]:
 
 
 import minfig
+import numpy as np
+#want to add in a wait for the connection part
+random_sleep_sec = np.random.randint(0, 300)
+print(f"Sleeping {random_sleep_sec} sec before conneting")
+time.sleep(random_sleep_sec)
+print("Done sleeping")
+
 du.config_celii()
 du.set_minnie65_config_segmentation(minfig)
 du.print_minnie65_config_paths(minfig)
@@ -41,7 +48,7 @@ minnie,schema = du.configure_minnie_vm()
 
 # # Christos Setup
 
-# In[3]:
+# In[ ]:
 
 
 import datajoint as dj
@@ -64,7 +71,7 @@ import os
 from pathlib import Path
 
 
-# In[4]:
+# In[ ]:
 
 
 import meshlab
@@ -73,13 +80,13 @@ temporary_folder = 'decimation_temp'
 meshlab_scripts = {}
 
 
-# In[5]:
+# In[ ]:
 
 
 from minfig.adapters import *
 
 
-# In[6]:
+# In[ ]:
 
 
 from minfig.minnie65_config import external_decimated_mesh_path
@@ -164,13 +171,13 @@ class Decimation(dj.Computed):
 
 # # Experimenting with the relation
 
-# In[12]:
+# In[ ]:
 
 
-(schema.jobs & "table_name='__decimation'").delete()
+(schema.jobs & "table_name='__decimation'")#.delete()
 
 
-# In[10]:
+# In[ ]:
 
 
 import random
