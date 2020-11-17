@@ -33,7 +33,7 @@ import time
 import minfig
 import numpy as np
 #want to add in a wait for the connection part
-random_sleep_sec = np.random.randint(0, 300)
+random_sleep_sec = np.random.randint(0, 30)
 print(f"Sleeping {random_sleep_sec} sec before conneting")
 time.sleep(random_sleep_sec)
 print("Done sleeping")
