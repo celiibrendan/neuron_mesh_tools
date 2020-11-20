@@ -13,7 +13,7 @@ new mesh segmentation
 
 # # Modules for Datajoint
 
-# In[1]:
+# In[ ]:
 
 
 import numpy as np
@@ -29,7 +29,7 @@ import datajoint_utils as du
 from importlib import reload
 
 
-# In[2]:
+# In[ ]:
 
 
 import minfig
@@ -51,7 +51,7 @@ minnie,schema = du.configure_minnie_vm()
 
 # # Modules for Soma Extraction
 
-# In[3]:
+# In[ ]:
 
 
 from soma_extraction_utils import *
@@ -204,7 +204,7 @@ class BaylorSegmentCentroid(dj.Computed):
     
 
 
-# In[5]:
+# In[ ]:
 
 
 #(schema.jobs & "table_name='__baylor_segment_centroid'").delete()
