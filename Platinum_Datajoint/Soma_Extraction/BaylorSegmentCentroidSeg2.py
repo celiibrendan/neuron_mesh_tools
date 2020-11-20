@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[1]:
+# In[ ]:
 
 
 """
@@ -13,7 +13,7 @@ new mesh segmentation
 
 # # Modules for Datajoint
 
-# In[2]:
+# In[1]:
 
 
 import numpy as np
@@ -29,7 +29,7 @@ import datajoint_utils as du
 from importlib import reload
 
 
-# In[3]:
+# In[2]:
 
 
 import minfig
@@ -51,7 +51,7 @@ minnie,schema = du.configure_minnie_vm()
 
 # # Modules for Soma Extraction
 
-# In[4]:
+# In[3]:
 
 
 from soma_extraction_utils import *
@@ -61,13 +61,7 @@ meshlab.set_meshlab_port(current_port=None)
 
 # # The table that will do the soma extraction
 
-# In[5]:
-
-
-(minnie.Decimation() & "n_vertices>10000").proj(decimation_version='version')
-
-
-# In[6]:
+# In[ ]:
 
 
 decimation_version = 0
@@ -91,6 +85,7 @@ class BaylorSegmentCentroid(dj.Computed):
     sdf=NULL                  : double                       # sdf width value for the soma
     max_side_ratio=NULL       : double                       # the maximum of the side length ratios used for check if soma
     bbox_volume_ratio=NULL    : double                       # ratio of bbox (axis aligned) volume to mesh volume to use for check if soma
+    max_hole_length=NULL      : double                    #euclidean distance of the maximum hole size
     run_time=NULL : double                   # the amount of time to run (seconds)
 
     """
@@ -158,6 +153,7 @@ class BaylorSegmentCentroid(dj.Computed):
                                sdf = None,
                                max_side_ratio = None,
                                bbox_volume_ratio = None,
+                               max_hole_length=None,
                                run_time=run_time
                               )
             
@@ -179,6 +175,7 @@ class BaylorSegmentCentroid(dj.Computed):
             auto_prediction_center = np.mean(current_soma.vertices,axis=0) / np.array([4,4,40])
             auto_prediction_center = auto_prediction_center.astype("int")
             print(f"Predicted Coordinates are {auto_prediction_center}")
+            max_hole_length = tu.largest_hole_length(current_soma)
 
 
 
@@ -195,6 +192,7 @@ class BaylorSegmentCentroid(dj.Computed):
                                sdf = np.round(soma_sdf,3),
                                max_side_ratio = np.round(sz_ratio,3),
                                bbox_volume_ratio = np.round(vol_ratio,3),
+                               max_hole_length = np.round(max_hole_length,3),
                                run_time=np.round(run_time,4)
                               )
 
@@ -206,13 +204,13 @@ class BaylorSegmentCentroid(dj.Computed):
     
 
 
-# In[7]:
+# In[5]:
 
 
 #(schema.jobs & "table_name='__baylor_segment_centroid'").delete()
 
 
-# In[9]:
+# In[ ]:
 
 
 import time
