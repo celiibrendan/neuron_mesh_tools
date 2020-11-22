@@ -11,7 +11,7 @@ Purpose: To Run the neuron preprocessing
 """
 
 
-# In[1]:
+# In[ ]:
 
 
 import numpy as np
@@ -29,14 +29,14 @@ from importlib import reload
 
 # # configuring the virtual module
 
-# In[2]:
+# In[ ]:
 
 
 import minfig
 import time
 import numpy as np
 #want to add in a wait for the connection part
-random_sleep_sec = np.random.randint(0, 30)
+random_sleep_sec = np.random.randint(0, 200)
 print(f"Sleeping {random_sleep_sec} sec before conneting")
 time.sleep(random_sleep_sec)
 print("Done sleeping")
@@ -51,7 +51,7 @@ minnie,schema = du.configure_minnie_vm()
 
 # # Defining Our Table
 
-# In[3]:
+# In[ ]:
 
 
 import neuron_utils as nru
@@ -60,7 +60,7 @@ import trimesh_utils as tu
 import numpy as np
 
 
-# In[4]:
+# In[ ]:
 
 
 from soma_extraction_utils import *
@@ -68,7 +68,7 @@ import meshlab
 meshlab.set_meshlab_port(current_port=None)
 
 
-# In[5]:
+# In[ ]:
 
 
 #so that it will have the adapter defined
@@ -139,7 +139,7 @@ class Decomposition(dj.Computed):
 
     key_source =  ((minnie.Decimation).proj(decimation_version='version') & 
                             "decimation_version=" + str(decimation_version) &
-                       f"decimation_ratio={decimation_ratio}" &  (minnie.BaylorSegmentCentroid() & "multiplicity>0").proj())
+                       f"decimation_ratio={decimation_ratio}" &  (minnie.BaylorSegmentCentroidExternal() & "multiplicity>0").proj())
     
 
     def make(self,key):
@@ -161,10 +161,10 @@ class Decomposition(dj.Computed):
         global_start = time.time()
         
         #2) Get the decimated mesh
-        current_neuron_mesh = du.fetch_segment_id_mesh(segment_id)
+        current_neuron_mesh = du.fetch_segment_id_mesh(segment_id,minnie=minnie)
 
         #3) Get the somas info *************************** Need to change this when actually run *******************
-        somas = du.get_soma_mesh_list(segment_id) 
+        somas = du.get_soma_mesh_list_external(segment_id,minnie) 
         print(f"somas = {somas}")
         #4) Run the preprocessing
 
@@ -220,10 +220,10 @@ class Decomposition(dj.Computed):
 
 # # Running The Populate
 
-# In[6]:
+# In[ ]:
 
 
-#(minnie.schema.jobs & "table_name='__decomposition'").delete()
+#(minnie.schema.jobs & "table_name='__decomposition'")#.delete()
 #((schema.jobs & "table_name = '__decomposition'") & "timestamp>'2020-11-16 00:26:00'").delete()
 
 
@@ -232,6 +232,8 @@ class Decomposition(dj.Computed):
 
 import time
 import random
+import compartment_utils as cu
+cu = reload(cu)
 
 start_time = time.time()
 time.sleep(random.randint(0, 900))
@@ -240,4 +242,10 @@ Decomposition.populate(reserve_jobs=True, suppress_errors=True, order='random')
 print('Populate Done')
 
 print(f"Total time for Decomposition populate = {time.time() - start_time}")
+
+
+# In[ ]:
+
+
+
 
