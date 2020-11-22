@@ -11,7 +11,7 @@ Purpose: To Run the neuron preprocessing
 """
 
 
-# In[ ]:
+# In[1]:
 
 
 import numpy as np
@@ -29,7 +29,7 @@ from importlib import reload
 
 # # configuring the virtual module
 
-# In[ ]:
+# In[2]:
 
 
 import minfig
@@ -51,7 +51,7 @@ minnie,schema = du.configure_minnie_vm()
 
 # # Defining Our Table
 
-# In[ ]:
+# In[3]:
 
 
 import neuron_utils as nru
@@ -60,15 +60,14 @@ import trimesh_utils as tu
 import numpy as np
 
 
-# In[ ]:
+# In[4]:
 
 
-from soma_extraction_utils import *
 import meshlab
 meshlab.set_meshlab_port(current_port=None)
 
 
-# In[ ]:
+# In[5]:
 
 
 #so that it will have the adapter defined
@@ -82,7 +81,7 @@ from datajoint_utils import *
 #schema.external['decomposition'].delete(delete_external_files=True)
 
 
-# In[ ]:
+# In[13]:
 
 
 import numpy as np
@@ -132,14 +131,16 @@ class Decomposition(dj.Computed):
     spine_volume_median=NULL: double # median of the spine volume for those spines with able to calculate volume
     spine_volume_density=NULL: double #total_spine_volume/skeletal_length
     spine_volume_density_eligible=NULL: double #total_spine_volume/skeletal_length_eligible
-    spine_volume_per_branch_eligible=NULL: double #total_spine_volume/n_spine_eligible_branche
+    spine_volume_per_branch_eligible=NULL: double #total_spine_volume/n_spine_eligible_branches
+    
+    run_time=NULL : double                   # the amount of time to run (seconds)
 
     
     """
 
     key_source =  ((minnie.Decimation).proj(decimation_version='version') & 
                             "decimation_version=" + str(decimation_version) &
-                       f"decimation_ratio={decimation_ratio}" &  (minnie.BaylorSegmentCentroidExternal() & "multiplicity>0").proj())
+                       f"decimation_ratio={decimation_ratio}" &  (minnie.BaylorSegmentCentroid() & "multiplicity>0").proj())
     
 
     def make(self,key):
@@ -154,6 +155,7 @@ class Decomposition(dj.Computed):
         6) Save the file in a certain location
         7) Pass stats and file location to insert
         """
+        whole_pass_time = time.time()
         #1) Get the segment id from the key
         segment_id = key["segment_id"]
         description = str(key['decimation_version']) + "_25"
@@ -164,7 +166,7 @@ class Decomposition(dj.Computed):
         current_neuron_mesh = du.fetch_segment_id_mesh(segment_id,minnie=minnie)
 
         #3) Get the somas info *************************** Need to change this when actually run *******************
-        somas = du.get_soma_mesh_list_external(segment_id,minnie) 
+        somas = du.get_soma_mesh_list(segment_id,minnie=minnie) 
         print(f"somas = {somas}")
         #4) Run the preprocessing
 
@@ -208,7 +210,8 @@ class Decomposition(dj.Computed):
         new_key = dict(key,
                        decomposition=ret_file_path_str,
                        n_vertices=len(current_neuron_mesh.vertices),
-                       n_faces=len(current_neuron_mesh.faces)
+                       n_faces=len(current_neuron_mesh.faces),
+                       run_time=np.round(time.time() - whole_pass_time,4)
                       )
         new_key.update(stats_dict)
 
@@ -220,14 +223,14 @@ class Decomposition(dj.Computed):
 
 # # Running The Populate
 
-# In[ ]:
+# In[34]:
 
 
 #(minnie.schema.jobs & "table_name='__decomposition'")#.delete()
 #((schema.jobs & "table_name = '__decomposition'") & "timestamp>'2020-11-16 00:26:00'").delete()
 
 
-# In[ ]:
+# In[15]:
 
 
 import time
@@ -242,10 +245,4 @@ Decomposition.populate(reserve_jobs=True, suppress_errors=True, order='random')
 print('Populate Done')
 
 print(f"Total time for Decomposition populate = {time.time() - start_time}")
-
-
-# In[ ]:
-
-
-
 
