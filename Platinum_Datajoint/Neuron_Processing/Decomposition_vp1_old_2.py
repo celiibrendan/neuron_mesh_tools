@@ -11,7 +11,7 @@ Purpose: To Run the neuron preprocessing
 """
 
 
-# In[ ]:
+# In[1]:
 
 
 import numpy as np
@@ -29,7 +29,7 @@ from importlib import reload
 
 # # configuring the virtual module
 
-# In[ ]:
+# In[2]:
 
 
 import minfig
@@ -51,7 +51,7 @@ minnie,schema = du.configure_minnie_vm()
 
 # # Defining Our Table
 
-# In[ ]:
+# In[3]:
 
 
 import neuron_utils as nru
@@ -60,14 +60,14 @@ import trimesh_utils as tu
 import numpy as np
 
 
-# In[ ]:
+# In[4]:
 
 
 import meshlab
 meshlab.set_meshlab_port(current_port=None)
 
 
-# In[ ]:
+# In[5]:
 
 
 #so that it will have the adapter defined
@@ -81,7 +81,7 @@ from datajoint_utils import *
 #schema.external['decomposition'].delete(delete_external_files=True)
 
 
-# In[ ]:
+# In[13]:
 
 
 import numpy as np
@@ -138,10 +138,10 @@ class Decomposition(dj.Computed):
     
     """
 
-#     key_source =  ((minnie.Decimation).proj(decimation_version='version') & 
-#                             "decimation_version=" + str(decimation_version) &
-#                        f"decimation_ratio={decimation_ratio}" &  (minnie.BaylorSegmentCentroid() & "multiplicity>0" & "segment_id=864691136309663834").proj())
-    key_source = (minnie.Decimation() & "n_faces>500000").proj(decimation_version='version') & (minnie.BaylorSegmentCentroid() & "multiplicity=1").proj()
+    key_source =  ((minnie.Decimation).proj(decimation_version='version') & 
+                            "decimation_version=" + str(decimation_version) &
+                       f"decimation_ratio={decimation_ratio}" &  (minnie.BaylorSegmentCentroid() & "multiplicity>0").proj())
+    
 
     def make(self,key):
         """
@@ -223,22 +223,20 @@ class Decomposition(dj.Computed):
 
 # # Running The Populate
 
-# In[ ]:
+# In[34]:
 
 
-#(minnie.schema.jobs & "table_name='__decomposition'").delete()
+#(minnie.schema.jobs & "table_name='__decomposition'")#.delete()
 #((schema.jobs & "table_name = '__decomposition'") & "timestamp>'2020-11-16 00:26:00'").delete()
 
 
-# In[ ]:
+# In[15]:
 
 
 import time
 import random
 import compartment_utils as cu
 cu = reload(cu)
-import preprocessing_vp2 as pre
-pre = reload(pre)
 
 start_time = time.time()
 time.sleep(random.randint(0, 900))
@@ -247,10 +245,4 @@ Decomposition.populate(reserve_jobs=True, suppress_errors=True, order='random')
 print('Populate Done')
 
 print(f"Total time for Decomposition populate = {time.time() - start_time}")
-
-
-# In[ ]:
-
-
-
 
