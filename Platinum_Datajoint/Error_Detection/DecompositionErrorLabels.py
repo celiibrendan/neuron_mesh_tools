@@ -23,7 +23,7 @@ from pathlib import Path
 from os import sys
 sys.path.append("/meshAfterParty/")
 
-import datajoint_utils as du
+
 from importlib import reload
 
 
@@ -42,14 +42,14 @@ import minfig
 import time
 import numpy as np
 #want to add in a wait for the connection part
-random_sleep_sec = np.random.randint(0, 200)
+random_sleep_sec = np.random.randint(0, 400)
 print(f"Sleeping {random_sleep_sec} sec before conneting")
 
-if not test_mode:
-    time.sleep(random_sleep_sec)
+
+time.sleep(random_sleep_sec)
 
 print("Done sleeping")
-
+import datajoint_utils as du
 du.config_celii()
 du.set_minnie65_config_segmentation(minfig)
 du.print_minnie65_config_paths(minfig)
@@ -149,13 +149,9 @@ import time
 import random
 
 start_time = time.time()
-if not test_mode:
-    time.sleep(random.randint(0, 900))
-print('Populate Started')
-if test_mode:
-    DecompositionErrorLabels.populate(reserve_jobs=True, suppress_errors=False)
-else:
-    DecompositionErrorLabels.populate(reserve_jobs=True, suppress_errors=True, order='random')
+time.sleep(random.randint(0, 900))
+
+DecompositionErrorLabels.populate(reserve_jobs=True, suppress_errors=True, order='random')
 print('Populate Done')
 
 print(f"Total time for DecompositionErrorLabels populate = {time.time() - start_time}")
