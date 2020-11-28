@@ -129,8 +129,27 @@ class DecompositionErrorLabels(dj.Computed):
         returned_error_faces = ed.error_faces_by_axons(neuron_obj,verbose=True,visualize_errors_at_end=False)
         
         #------- Doing the synapse Exclusion Writing ---------- #
-        data_to_write_new = ed.get_error_synapse_inserts(neuron_obj,returned_error_faces,minnie=minnie,verbose=True)
         
+        
+        success_flag = False
+        for i in range(10):
+            try:
+                data_to_write_new = ed.get_error_synapse_inserts(neuron_obj,returned_error_faces,minnie=minnie,verbose=True)
+
+            except:
+                print("Locked out trying to get data trying agin in 30 seconds")
+                time.sleep(30)
+            else:
+                success_flag = True
+
+
+            if success_flag:
+                print("successfully configured minnie")
+                break
+        
+        if not success_flag:
+            raise Exception("still didn't get data")
+            
         if len(data_to_write_new)>0:
             print("Preparing to write errored synapses")
             minnie.SynapseExclude.insert(data_to_write_new,skip_duplicates=True)
