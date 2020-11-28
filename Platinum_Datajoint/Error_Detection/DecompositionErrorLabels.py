@@ -55,8 +55,21 @@ du.set_minnie65_config_segmentation(minfig)
 du.print_minnie65_config_paths(minfig)
 
 #configuring will include the adapters
-minnie,schema = du.configure_minnie_vm()
-
+success_flag = False
+for i in range(10):
+    try:
+        minnie,schema = du.configure_minnie_vm()
+        
+    except:
+        print("Locked out trying agin in 30 seconds")
+        time.sleep(30)
+    else:
+        success_flag = True
+        
+        
+    if success_flag:
+        print("successfully configured minnie")
+        break
 
 # # Defining Our Table
 
