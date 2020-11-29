@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[ ]:
+# In[1]:
 
 
 """
@@ -11,7 +11,7 @@ To Run the Error Labeling Pipeline
 """
 
 
-# In[ ]:
+# In[2]:
 
 
 import numpy as np
@@ -29,13 +29,13 @@ from importlib import reload
 
 # # configuring the virtual module
 
-# In[ ]:
+# In[3]:
 
 
 test_mode = False
 
 
-# In[ ]:
+# In[4]:
 
 
 import minfig
@@ -74,7 +74,7 @@ for i in range(10):
 
 # # Defining Our Table
 
-# In[ ]:
+# In[5]:
 
 
 import neuron_utils as nru
@@ -83,21 +83,21 @@ import trimesh_utils as tu
 import numpy as np
 
 
-# In[ ]:
+# In[6]:
 
 
 #so that it will have the adapter defined
 from datajoint_utils import *
 
 
-# In[ ]:
+# In[7]:
 
 
 import error_detection as ed
 ed = reload(ed)
 
 
-# In[ ]:
+# In[8]:
 
 
 import numpy as np
@@ -132,7 +132,7 @@ class AutoProofreadLabels(dj.Computed):
         error_table = (minnie.DecompositionErrorLabels() & dict(segment_id=segment_id))
         if len(error_table)>0:
             print("using quick fetch")
-            current_mesh = du.fetch_segment_id_mesh(segment_id)
+            current_mesh = du.fetch_segment_id_mesh(segment_id,minnie=minnie)
             returned_error_faces = error_table.fetch1("face_idx_for_error")
             
         else:
@@ -166,7 +166,7 @@ class AutoProofreadLabels(dj.Computed):
         
 
 
-# In[ ]:
+# In[9]:
 
 
 #(schema.jobs & "table_name='__decomposition_error_labels'").delete()
@@ -174,7 +174,7 @@ class AutoProofreadLabels(dj.Computed):
 #minnie.DecompositionErrorLabels.delete()
 
 
-# In[ ]:
+# In[10]:
 
 
 import time
