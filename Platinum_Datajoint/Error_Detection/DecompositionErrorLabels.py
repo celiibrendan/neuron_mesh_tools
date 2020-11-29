@@ -130,7 +130,7 @@ class DecompositionErrorLabels(dj.Computed):
         
         #------- Doing the synapse Exclusion Writing ---------- #
         
-        
+        """
         success_flag = False
         for i in range(10):
             try:
@@ -153,6 +153,7 @@ class DecompositionErrorLabels(dj.Computed):
         if len(data_to_write_new)>0:
             print("Preparing to write errored synapses")
             minnie.SynapseExclude.insert(data_to_write_new,skip_duplicates=True)
+        """
             
         #------- Doing the Label Writing ---------- #
         new_key = dict(key,
