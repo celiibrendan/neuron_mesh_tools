@@ -13,7 +13,7 @@ using the new decomposition method
 """
 
 
-# In[1]:
+# In[ ]:
 
 
 import numpy as np
@@ -29,20 +29,20 @@ import datajoint_utils as du
 from importlib import reload
 
 
-# In[2]:
+# In[ ]:
 
 
 test_mode = False
 
 
-# In[3]:
+# In[ ]:
 
 
 import minfig
 import time
 import numpy as np
 #want to add in a wait for the connection part
-random_sleep_sec = np.random.randint(0, 200)
+random_sleep_sec = np.random.randint(0, 100)
 print(f"Sleeping {random_sleep_sec} sec before conneting")
 if not test_mode:
     time.sleep(random_sleep_sec)
@@ -80,7 +80,7 @@ minnie,schema = du.configure_minnie_vm()
 
 # # Defining the Table
 
-# In[4]:
+# In[ ]:
 
 
 import neuron_utils as nru
@@ -89,21 +89,21 @@ import trimesh_utils as tu
 import numpy as np
 
 
-# In[5]:
+# In[ ]:
 
 
 import meshlab
 meshlab.set_meshlab_port(current_port=None)
 
 
-# In[6]:
+# In[ ]:
 
 
 #so that it will have the adapter defined
 from datajoint_utils import *
 
 
-# In[9]:
+# In[ ]:
 
 
 import numpy as np
@@ -166,7 +166,7 @@ class DecompositionMultiSoma(dj.Computed):
 #     key_source = (minnie.Decimation() & "n_faces>500000").proj(decimation_version='version') & (minnie.BaylorSegmentCentroid() & "multiplicity=1").proj()
     key_source = (minnie.Decimation().proj(decimation_version='version')  & 
               dict(decimation_version=decimation_version,decimation_ratio=decimation_ratio)  
-              & minnie.MultiSomaProofread()).proj()
+              & minnie.MultiSomaProofread() & (dj.U("segment_id") & (minnie.BaylorSegmentCentroid() & "multiplicity>=2").proj()))
 
     def make(self,key):
         """
@@ -248,11 +248,25 @@ class DecompositionMultiSoma(dj.Computed):
 
 # # Running the Populate
 
-# In[10]:
+# In[ ]:
 
 
-(minnie.schema.jobs & "table_name='__decomposition_multi_soma'")#.delete() #& "status='error'"
-#((schema.jobs & "table_name = '__decomposition'") & "timestamp>'2020-11-16 00:26:00'").delete()
+curr_table = (minnie.schema.jobs & "table_name='__decomposition_multi_soma'")
+#curr_table.delete()
+
+
+# In[ ]:
+
+
+# import pandas as pd
+# key_hash,error_message = curr_table.fetch("key_hash","error_message")
+
+# df = pd.DataFrame.from_dict([dict(key_hash = k,error_message = m) for k,m in zip(key_hash,error_message)])
+# df
+# #df.columns = ["error","key_hash"]
+# key_hashes_to_delete = df[df["error_message"].str.contains("OSError")]["key_hash"].to_numpy()
+
+# (curr_table & [dict(key_hash=k) for k in key_hashes_to_delete]).delete()
 
 
 # In[ ]:
@@ -267,7 +281,7 @@ pre = reload(pre)
 
 start_time = time.time()
 if not test_mode:
-    time.sleep(random.randint(0, 900))
+    time.sleep(random.randint(0, 200))
 print('Populate Started')
 if not test_mode:
     DecompositionMultiSoma.populate(reserve_jobs=True, suppress_errors=True)
