@@ -42,7 +42,7 @@ import minfig
 import time
 import numpy as np
 #want to add in a wait for the connection part
-random_sleep_sec = np.random.randint(0, 100)
+random_sleep_sec = np.random.randint(0, 200)
 print(f"Sleeping {random_sleep_sec} sec before conneting")
 if not test_mode:
     time.sleep(random_sleep_sec)
@@ -166,7 +166,7 @@ class DecompositionMultiSoma(dj.Computed):
 #     key_source = (minnie.Decimation() & "n_faces>500000").proj(decimation_version='version') & (minnie.BaylorSegmentCentroid() & "multiplicity=1").proj()
     key_source = (minnie.Decimation().proj(decimation_version='version')  & 
               dict(decimation_version=decimation_version,decimation_ratio=decimation_ratio)  
-              & minnie.MultiSomaProofread() & (dj.U("segment_id") & (minnie.BaylorSegmentCentroid() & "multiplicity>=2").proj()))
+              & minnie.MultiSomaProofread() & (dj.U("segment_id") & (minnie.BaylorSegmentCentroid() & "multiplicity>=3").proj()))
 
     def make(self,key):
         """
@@ -281,7 +281,7 @@ pre = reload(pre)
 
 start_time = time.time()
 if not test_mode:
-    time.sleep(random.randint(0, 200))
+    time.sleep(random.randint(0, 800))
 print('Populate Started')
 if not test_mode:
     DecompositionMultiSoma.populate(reserve_jobs=True, suppress_errors=True)
