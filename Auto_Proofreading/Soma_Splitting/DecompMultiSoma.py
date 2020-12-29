@@ -13,7 +13,7 @@ using the new decomposition method
 """
 
 
-# In[ ]:
+# In[1]:
 
 
 import numpy as np
@@ -29,13 +29,13 @@ import datajoint_utils as du
 from importlib import reload
 
 
-# In[ ]:
+# In[2]:
 
 
 test_mode = False
 
 
-# In[ ]:
+# In[3]:
 
 
 import minfig
@@ -58,7 +58,7 @@ minnie,schema = du.configure_minnie_vm()
 
 # # Getting the list of neurons to decompose for the mutli soma testing
 
-# In[ ]:
+# In[4]:
 
 
 # import pandas as pd
@@ -80,7 +80,7 @@ minnie,schema = du.configure_minnie_vm()
 
 # # Defining the Table
 
-# In[ ]:
+# In[5]:
 
 
 import neuron_utils as nru
@@ -89,21 +89,32 @@ import trimesh_utils as tu
 import numpy as np
 
 
-# In[ ]:
+# In[6]:
 
 
 import meshlab
 meshlab.set_meshlab_port(current_port=None)
 
 
-# In[ ]:
+# In[7]:
 
 
 #so that it will have the adapter defined
 from datajoint_utils import *
 
 
-# In[ ]:
+# In[8]:
+
+
+decimation_version = 0
+decimation_ratio = 0.25
+key_source = (minnie.Decimation().proj(decimation_version='version')  & 
+              dict(decimation_version=decimation_version,decimation_ratio=decimation_ratio)  
+              & minnie.MultiSomaProofread() & (dj.U("segment_id") & (minnie.BaylorSegmentCentroid() & "multiplicity=2").proj())-(minnie.Decimation.proj() & minnie.Decomposition.proj()))
+key_source
+
+
+# In[9]:
 
 
 import numpy as np
@@ -164,9 +175,10 @@ class DecompositionMultiSoma(dj.Computed):
 #                             "decimation_version=" + str(decimation_version) &
 #                        f"decimation_ratio={decimation_ratio}" &  (minnie.BaylorSegmentCentroid() & "multiplicity>0" & "segment_id=864691136309663834").proj())
 #     key_source = (minnie.Decimation() & "n_faces>500000").proj(decimation_version='version') & (minnie.BaylorSegmentCentroid() & "multiplicity=1").proj()
+
     key_source = (minnie.Decimation().proj(decimation_version='version')  & 
               dict(decimation_version=decimation_version,decimation_ratio=decimation_ratio)  
-              & minnie.MultiSomaProofread() & (dj.U("segment_id") & (minnie.BaylorSegmentCentroid() & "multiplicity>=3").proj()))
+              & minnie.MultiSomaProofread() & (dj.U("segment_id") & (minnie.BaylorSegmentCentroid() & "multiplicity=2").proj())-(minnie.Decimation.proj() & minnie.Decomposition.proj()))
 
     def make(self,key):
         """
@@ -248,14 +260,13 @@ class DecompositionMultiSoma(dj.Computed):
 
 # # Running the Populate
 
-# In[ ]:
+# In[14]:
 
 
 curr_table = (minnie.schema.jobs & "table_name='__decomposition_multi_soma'")
-#curr_table.delete()
 
 
-# In[ ]:
+# In[11]:
 
 
 # import pandas as pd
@@ -269,7 +280,7 @@ curr_table = (minnie.schema.jobs & "table_name='__decomposition_multi_soma'")
 # (curr_table & [dict(key_hash=k) for k in key_hashes_to_delete]).delete()
 
 
-# In[ ]:
+# In[12]:
 
 
 import time
