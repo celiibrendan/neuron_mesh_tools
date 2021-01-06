@@ -16,13 +16,6 @@ using the new decomposition method
 # In[ ]:
 
 
-get_ipython().run_line_magic('load_ext', 'autoreload')
-get_ipython().run_line_magic('autoreload', '2')
-
-
-# In[ ]:
-
-
 import numpy as np
 import datajoint as dj
 import trimesh
