@@ -77,6 +77,13 @@ WORKDIR /
 RUN pip3 install annotationframeworkclient 
 RUN pip3 install nglui 
 
+#------- 1/5: Mesh downloading add ons -----
+RUN pip3 install --upgrade pip
+#RUN pip3 install --upgrade orjson 
+#RUN pip3 install --upgrade cloud-volume 
+RUN pip3 install --upgrade meshparty
+
+
 ADD ./jupyter/run_jupyter_unix.sh /scripts/
 ADD ./jupyter/jupyter_notebook_config.py /root/.jupyter/
 ADD ./jupyter/custom.css /root/.jupyter/custom/
