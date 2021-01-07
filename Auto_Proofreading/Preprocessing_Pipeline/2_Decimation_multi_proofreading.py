@@ -236,14 +236,5 @@ print('Populate Done')
 print(f"Total time for Decimation populate = {time.time() - start_time}")
 
 
-# In[ ]:
-
-
-debug
-
-
-# In[ ]:
-
-
 
 
