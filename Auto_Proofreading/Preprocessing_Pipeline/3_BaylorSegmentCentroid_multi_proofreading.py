@@ -112,6 +112,7 @@ from datajoint_utils import *
 decimation_version = 0
 decimation_ratio = 0.25
 verts_min = 10000
+current_version = 29.0
 
 
 import soma_extraction_utils as sm
@@ -120,6 +121,7 @@ class BaylorSegmentCentroid(dj.Computed):
     definition="""
     -> minnie.Decimation.proj(decimation_version='version')
     soma_index : tinyint unsigned #index given to this soma to account for multiple somas in one base semgnet
+    ver : decimal(6,2) #the version number of the materializaiton
     ---
     centroid_x=NULL           : int unsigned                 # (EM voxels)
     centroid_y=NULL           : int unsigned                 # (EM voxels)
@@ -137,7 +139,7 @@ class BaylorSegmentCentroid(dj.Computed):
     """
     key_source =  ((minnie.Decimation & f"n_vertices > {verts_min}").proj(decimation_version='version') & 
                         "decimation_version=" + str(decimation_version) &
-                   f"decimation_ratio={decimation_ratio}" & minnie.SegToDecimateFromNuclei()) & minnie.MultiSomaProofread2.proj()
+                   f"decimation_ratio={decimation_ratio}") & minnie.MultiSomaProofread2.proj()
 
      
 
@@ -189,6 +191,7 @@ class BaylorSegmentCentroid(dj.Computed):
             
             insert_dict = dict(key,
                               soma_index=0,
+                               ver=current_version,
                               centroid_x=None,
                                centroid_y=None,
                                centroid_z=None,
@@ -237,6 +240,7 @@ class BaylorSegmentCentroid(dj.Computed):
 
             insert_dict = dict(key,
                               soma_index=i+1,
+                               ver=current_version,
                               centroid_x=auto_prediction_center[0],
                                centroid_y=auto_prediction_center[1],
                                centroid_z=auto_prediction_center[2],
@@ -255,8 +259,6 @@ class BaylorSegmentCentroid(dj.Computed):
 
             dicts_to_insert.append(insert_dict)
         self.insert(dicts_to_insert,skip_duplicates=True)
-        
-        
 
 
 # # Running the Populate
@@ -265,6 +267,7 @@ class BaylorSegmentCentroid(dj.Computed):
 
 
 curr_table = (minnie.schema.jobs & "table_name='__baylor_segment_centroid'")
+#curr_table.delete()
 #curr_table.delete()
 #curr_table.delete()
 #curr_table.delete()
@@ -301,10 +304,4 @@ else:
 print('Populate Done')
 
 print(f"Total time for BaylorSegmentCentroid populate = {time.time() - start_time}")
-
-
-# In[ ]:
-
-
-
 
