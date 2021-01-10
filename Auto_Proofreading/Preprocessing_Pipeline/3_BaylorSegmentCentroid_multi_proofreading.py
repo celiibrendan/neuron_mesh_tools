@@ -109,12 +109,35 @@ from datajoint_utils import *
 # In[ ]:
 
 
+@schema
+class NeuronGliaNuclei(dj.Manual):
+    definition="""
+    -> minnie.Decimation.proj(decimation_version='version')
+    ver : decimal(6,2) #the version number of the materializaiton
+    ---
+    n_glia_faces              : int unsigned                 # The number of faces that were saved off as belonging to glia
+    glia_faces=NULL           : longblob                     # faces indices that were saved off as belonging to glia
+    n_nuclei_faces            : int unsigned                 # The number of faces that were saved off as belonging to nuclie
+    nuclei_faces=NULL         : longblob                     # faces indices that were saved off as belonging to nuclei
+    """
+
+
+# In[ ]:
+
+
+#schema.external['somas'].delete(delete_external_files=True)
+
+
+# In[ ]:
+
+
 decimation_version = 0
 decimation_ratio = 0.25
 verts_min = 10000
 current_version = 29.0
 
 
+import trimesh_utils as tu
 import soma_extraction_utils as sm
 @schema
 class BaylorSegmentCentroid(dj.Computed):
@@ -164,11 +187,52 @@ class BaylorSegmentCentroid(dj.Computed):
 
         (total_soma_list, 
          run_time, 
-         total_soma_list_sdf) = sm.extract_soma_center(
+         total_soma_list_sdf,
+         glia_pieces,
+         nuclei_pieces) = sm.extract_soma_center(
                             segment_id,
                             current_mesh_verts,
                             current_mesh_faces,
+            return_glia_nuclei_pieces=True,
         )
+        
+        # -------- 1/9 Addition: Going to save off the glia and nuclei pieces ----------- #
+        """
+        Psuedocode:
+        For both glia and nuclie pieces
+        1) If the length of array is greater than 0 --> combine the mesh and map the indices to original mesh
+        2) If not then just put None     
+        """
+        orig_mesh = trimesh.Trimesh(vertices=current_mesh_verts,
+                                   faces=current_mesh_faces)
+        
+        if len(glia_pieces)>0:
+            glia_faces = tu.original_mesh_faces_map(orig_mesh,tu.combine_meshes(glia_pieces))
+            n_glia_faces = len(glia_faces)
+        else:
+            glia_faces = None
+            n_glia_faces = 0
+            
+        if len(nuclei_pieces)>0:
+            nuclei_faces = tu.original_mesh_faces_map(orig_mesh,tu.combine_meshes(nuclei_pieces))
+            n_nuclei_faces = len(glia_faces)
+        else:
+            nuclei_faces = None
+            n_nuclei_faces = 0
+            
+        glia_nuclei_key = dict(key,
+                               ver=current_version,
+                               n_glia_faces=n_glia_faces,
+                               glia_faces = glia_faces,
+                               n_nuclei_faces = n_nuclei_faces,
+                               nuclei_faces = nuclei_faces
+                              )
+        
+        NeuronGliaNuclei.insert1(glia_nuclei_key,replace=True)
+        print(f"Finished saving off glia and nuclei information : {glia_nuclei_key}")
+        
+        # ---------------- End of 1/9 Addition --------------------------------- #
+        
         
         
         print(f"Run time was {run_time} \n    total_soma_list = {total_soma_list}"
@@ -267,9 +331,7 @@ class BaylorSegmentCentroid(dj.Computed):
 
 
 curr_table = (minnie.schema.jobs & "table_name='__baylor_segment_centroid'")
-#curr_table.delete()
-#curr_table.delete()
-#curr_table.delete()
+curr_table#.delete()
 #curr_table.delete()
 
 
@@ -292,6 +354,8 @@ curr_table = (minnie.schema.jobs & "table_name='__baylor_segment_centroid'")
 
 import time
 import random
+
+sm = reload(sm)
 
 start_time = time.time()
 if not test_mode:
