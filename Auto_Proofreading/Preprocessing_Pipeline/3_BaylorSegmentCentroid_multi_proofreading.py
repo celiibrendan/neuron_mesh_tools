@@ -131,6 +131,13 @@ class NeuronGliaNuclei(dj.Manual):
 # In[ ]:
 
 
+#minnie.BaylorSegmentCentroid.delete()
+#NeuronGliaNuclei.delete()
+
+
+# In[ ]:
+
+
 decimation_version = 0
 decimation_ratio = 0.25
 verts_min = 10000
@@ -154,6 +161,7 @@ class BaylorSegmentCentroid(dj.Computed):
     mesh: <somas>  #datajoint adapter to get the somas mesh objects
     multiplicity=NULL         : tinyint unsigned             # the number of somas found for this base segment
     sdf=NULL                  : double                       # sdf width value for the soma
+    volume=NULL               : double                       # the volume in billions (10*9 nm^3) of the convex hull
     max_side_ratio=NULL       : double                       # the maximum of the side length ratios used for check if soma
     bbox_volume_ratio=NULL    : double                       # ratio of bbox (axis aligned) volume to mesh volume to use for check if soma
     max_hole_length=NULL      : double                    #euclidean distance of the maximum hole size
@@ -178,7 +186,7 @@ class BaylorSegmentCentroid(dj.Computed):
         """
         
         #get the mesh data
-        print(f"\n\n\n---- Working on {key['segment_id']} ----")
+        print(f"\n\n\n---- Working on Neuron {key['segment_id']} ----")
         print(key)
         new_mesh = (minnie.Decimation() & key).fetch1("mesh")
         current_mesh_verts,current_mesh_faces = new_mesh.vertices,new_mesh.faces
@@ -215,7 +223,7 @@ class BaylorSegmentCentroid(dj.Computed):
             
         if len(nuclei_pieces)>0:
             nuclei_faces = tu.original_mesh_faces_map(orig_mesh,tu.combine_meshes(nuclei_pieces))
-            n_nuclei_faces = len(glia_faces)
+            n_nuclei_faces = len(nuclei_pieces)
         else:
             nuclei_faces = None
             n_nuclei_faces = 0
@@ -266,6 +274,7 @@ class BaylorSegmentCentroid(dj.Computed):
                                mesh=returned_file_path,
                                multiplicity=0,
                                sdf = None,
+                               volume = None,
                                max_side_ratio = None,
                                bbox_volume_ratio = None,
                                max_hole_length=None,
@@ -313,6 +322,7 @@ class BaylorSegmentCentroid(dj.Computed):
                                mesh=returned_file_path,
                                multiplicity=len(total_soma_list),
                                sdf = np.round(soma_sdf,3),
+                               volume = current_soma.convex_hull.volume/1000000000,
                                max_side_ratio = np.round(sz_ratio,3),
                                bbox_volume_ratio = np.round(vol_ratio,3),
                                max_hole_length = np.round(max_hole_length,3),
@@ -368,4 +378,10 @@ else:
 print('Populate Done')
 
 print(f"Total time for BaylorSegmentCentroid populate = {time.time() - start_time}")
+
+
+# In[ ]:
+
+
+
 
