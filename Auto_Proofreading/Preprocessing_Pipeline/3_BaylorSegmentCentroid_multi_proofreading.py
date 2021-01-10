@@ -14,7 +14,7 @@ multi soma proofreading
 """
 
 
-# In[ ]:
+# In[1]:
 
 
 import numpy as np
@@ -30,13 +30,13 @@ import datajoint_utils as du
 from importlib import reload
 
 
-# In[ ]:
+# In[2]:
 
 
 test_mode = False
 
 
-# In[ ]:
+# In[3]:
 
 
 import minfig
@@ -59,7 +59,7 @@ minnie,schema = du.configure_minnie_vm()
 
 # # Getting the list of neurons to decompose for the mutli soma testing
 
-# In[ ]:
+# In[4]:
 
 
 # import pandas as pd
@@ -81,7 +81,7 @@ minnie,schema = du.configure_minnie_vm()
 
 # # Defining the Table
 
-# In[ ]:
+# In[5]:
 
 
 import neuron_utils as nru
@@ -90,7 +90,7 @@ import trimesh_utils as tu
 import numpy as np
 
 
-# In[ ]:
+# In[6]:
 
 
 import meshlab
@@ -99,14 +99,14 @@ temporary_folder = 'decimation_temp'
 meshlab_scripts = {}
 
 
-# In[ ]:
+# In[7]:
 
 
 #so that it will have the adapter defined
 from datajoint_utils import *
 
 
-# In[ ]:
+# In[8]:
 
 
 @schema
@@ -122,17 +122,17 @@ class NeuronGliaNuclei(dj.Manual):
     """
 
 
-# In[ ]:
+# In[15]:
 
 
-#schema.external['somas'].delete(delete_external_files=True)
+# schema.external['somas'].delete(delete_external_files=True)
 
 
-# In[ ]:
+# In[16]:
 
 
-#minnie.BaylorSegmentCentroid.delete()
-#NeuronGliaNuclei.delete()
+# minnie.BaylorSegmentCentroid()#.delete()
+# NeuronGliaNuclei.delete()
 
 
 # In[ ]:
@@ -223,7 +223,7 @@ class BaylorSegmentCentroid(dj.Computed):
             
         if len(nuclei_pieces)>0:
             nuclei_faces = tu.original_mesh_faces_map(orig_mesh,tu.combine_meshes(nuclei_pieces))
-            n_nuclei_faces = len(nuclei_pieces)
+            n_nuclei_faces = len(nuclei_faces)
         else:
             nuclei_faces = None
             n_nuclei_faces = 0
