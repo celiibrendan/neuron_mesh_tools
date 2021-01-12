@@ -169,7 +169,7 @@ class Decomposition(dj.Computed):
     
     key_source = (minnie.Decimation().proj(decimation_version='version')  & 
                   dict(decimation_version=decimation_version,decimation_ratio=decimation_ratio)  
-                  & minnie.MultiSomaProofread2() & (dj.U("segment_id") & (minnie.BaylorSegmentCentroid()).proj())
+                  & minnie.MultiSomaProofread2() & (dj.U("segment_id") & (minnie.BaylorSegmentCentroid()).proj()))
     
 
     def make(self,key):
