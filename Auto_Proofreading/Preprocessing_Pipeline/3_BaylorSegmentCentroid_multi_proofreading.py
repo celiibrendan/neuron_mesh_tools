@@ -14,7 +14,7 @@ multi soma proofreading
 """
 
 
-# In[1]:
+# In[ ]:
 
 
 import numpy as np
@@ -30,13 +30,13 @@ import datajoint_utils as du
 from importlib import reload
 
 
-# In[2]:
+# In[ ]:
 
 
 test_mode = False
 
 
-# In[3]:
+# In[ ]:
 
 
 import minfig
@@ -59,7 +59,7 @@ minnie,schema = du.configure_minnie_vm()
 
 # # Getting the list of neurons to decompose for the mutli soma testing
 
-# In[4]:
+# In[ ]:
 
 
 # import pandas as pd
@@ -81,7 +81,7 @@ minnie,schema = du.configure_minnie_vm()
 
 # # Defining the Table
 
-# In[5]:
+# In[ ]:
 
 
 import neuron_utils as nru
@@ -90,7 +90,7 @@ import trimesh_utils as tu
 import numpy as np
 
 
-# In[6]:
+# In[ ]:
 
 
 import meshlab
@@ -99,14 +99,14 @@ temporary_folder = 'decimation_temp'
 meshlab_scripts = {}
 
 
-# In[7]:
+# In[ ]:
 
 
 #so that it will have the adapter defined
 from datajoint_utils import *
 
 
-# In[8]:
+# In[ ]:
 
 
 @schema
@@ -116,23 +116,38 @@ class NeuronGliaNuclei(dj.Manual):
     ver : decimal(6,2) #the version number of the materializaiton
     ---
     n_glia_faces              : int unsigned                 # The number of faces that were saved off as belonging to glia
-    glia_faces=NULL           : longblob                     # faces indices that were saved off as belonging to glia
+    glia_faces=NULL           : <faces>                      # faces indices that were saved off as belonging to glia (external storage)
     n_nuclei_faces            : int unsigned                 # The number of faces that were saved off as belonging to nuclie
-    nuclei_faces=NULL         : longblob                     # faces indices that were saved off as belonging to nuclei
+    nuclei_faces=NULL         : <faces>                      # faces indices that were saved off as belonging to nuclei (external storage)
     """
 
 
-# In[15]:
+# In[ ]:
 
 
+# schema.external['faces'].delete(delete_external_files=True)
 # schema.external['somas'].delete(delete_external_files=True)
 
 
-# In[16]:
+# In[ ]:
 
 
-# minnie.BaylorSegmentCentroid()#.delete()
-# NeuronGliaNuclei.delete()
+# minnie.BaylorSegmentCentroid.delete()
+# minnie.NeuronGliaNuclei().delete()
+
+
+# In[ ]:
+
+
+decimation_version = 0
+decimation_ratio = 0.25
+verts_min = 10000
+current_version = 29.0
+
+key_source =  ((minnie.Decimation & f"n_vertices > {verts_min}").proj(decimation_version='version') & 
+                        "decimation_version=" + str(decimation_version) &
+                   f"decimation_ratio={decimation_ratio}") & minnie.MultiSomaProofread2.proj()
+key_source
 
 
 # In[ ]:
@@ -228,12 +243,21 @@ class BaylorSegmentCentroid(dj.Computed):
             nuclei_faces = None
             n_nuclei_faces = 0
             
+        # --------- saving the nuclei and glia saves
+        glia_path,nuclei_path = du.save_glia_nuclei_files(glia_faces=glia_faces,
+                                 nuclei_faces=nuclei_faces,
+                                 segment_id=segment_id)
+        
+        print(f" glia_path = {glia_path} \n nuclei_path = {nuclei_path}")
+            
         glia_nuclei_key = dict(key,
                                ver=current_version,
                                n_glia_faces=n_glia_faces,
-                               glia_faces = glia_faces,
+                               #glia_faces = glia_faces,
+                               glia_faces = glia_path,
                                n_nuclei_faces = n_nuclei_faces,
-                               nuclei_faces = nuclei_faces
+                               #nuclei_faces = nuclei_faces
+                               nuclei_faces = nuclei_path,
                               )
         
         NeuronGliaNuclei.insert1(glia_nuclei_key,replace=True)
@@ -341,7 +365,7 @@ class BaylorSegmentCentroid(dj.Computed):
 
 
 curr_table = (minnie.schema.jobs & "table_name='__baylor_segment_centroid'")
-curr_table#.delete()
+#curr_table.delete()
 #curr_table.delete()
 
 
@@ -378,10 +402,4 @@ else:
 print('Populate Done')
 
 print(f"Total time for BaylorSegmentCentroid populate = {time.time() - start_time}")
-
-
-# In[ ]:
-
-
-
 
