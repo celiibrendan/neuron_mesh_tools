@@ -365,7 +365,7 @@ class BaylorSegmentCentroid(dj.Computed):
 
 
 curr_table = (minnie.schema.jobs & "table_name='__baylor_segment_centroid'")
-#curr_table.delete()
+curr_table#.delete()# & "status='error'"#.delete()
 #curr_table.delete()
 
 
@@ -402,4 +402,10 @@ else:
 print('Populate Done')
 
 print(f"Total time for BaylorSegmentCentroid populate = {time.time() - start_time}")
+
+
+# In[ ]:
+
+
+
 
