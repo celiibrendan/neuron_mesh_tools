@@ -13,7 +13,7 @@ using the new decomposition method
 """
 
 
-# In[1]:
+# In[ ]:
 
 
 import numpy as np
@@ -29,13 +29,13 @@ import datajoint_utils as du
 from importlib import reload
 
 
-# In[2]:
+# In[ ]:
 
 
 test_mode = False
 
 
-# In[3]:
+# In[ ]:
 
 
 import minfig
@@ -58,7 +58,7 @@ minnie,schema = du.configure_minnie_vm()
 
 # # Defining the Table
 
-# In[4]:
+# In[ ]:
 
 
 import neuron_utils as nru
@@ -67,21 +67,21 @@ import trimesh_utils as tu
 import numpy as np
 
 
-# In[5]:
+# In[ ]:
 
 
 import meshlab
 meshlab.set_meshlab_port(current_port=None)
 
 
-# In[6]:
+# In[ ]:
 
 
 #so that it will have the adapter defined
 from datajoint_utils import *
 
 
-# In[7]:
+# In[ ]:
 
 
 decimation_version = 0
@@ -92,23 +92,38 @@ key_source = (minnie.Decimation().proj(decimation_version='version')  &
 key_source
 
 
-# In[13]:
+# In[ ]:
+
+
+#schema.external['decomposition'].delete(delete_external_files=True)
+
+
+# In[ ]:
+
+
+#minnie.Decomposition.drop()
+
+
+# In[ ]:
 
 
 import numpy as np
 import time
 decimation_version = 0
 decimation_ratio = 0.25
+process_version = 0
 
 @schema
 class Decomposition(dj.Computed):
     definition="""
     -> minnie.Decimation.proj(decimation_version='version')
     ver : decimal(6,2) #the version number of the materializaiton
+    process_version : int unsigned #the version of the preprocessing pipeline run
     ---
     decomposition: <decomposition>
     n_vertices           : int unsigned                 # number of vertices
     n_faces              : int unsigned                 # number of faces
+    n_not_processed_soma_containing_meshes : int unsigned  #the number of meshes with somas that were not processed
     n_error_limbs: int #the number of limbs that are touching multiple somas or 1 soma in multiple places
     n_same_soma_multi_touching_limbs: int # number of limbs that touch the same soma multiple times
     n_multi_soma_touching_limbs: int # number of limbs that touch multiple somas
@@ -154,7 +169,8 @@ class Decomposition(dj.Computed):
     
     key_source = (minnie.Decimation().proj(decimation_version='version')  & 
                   dict(decimation_version=decimation_version,decimation_ratio=decimation_ratio)  
-                  & minnie.MultiSomaProofread2() & (dj.U("segment_id") & (minnie.BaylorSegmentCentroid()).proj()))
+                  & minnie.MultiSomaProofread2() & (dj.U("segment_id") & (minnie.BaylorSegmentCentroid()).proj())
+    
 
     def make(self,key):
         """
@@ -172,18 +188,24 @@ class Decomposition(dj.Computed):
         #1) Get the segment id from the key
         segment_id = key["segment_id"]
         description = str(key['decimation_version']) + "_25"
-        print(f"\n\n----- Working on {segment_id}-------")
+        print(f"\n\n\n---- Working on Neuron {key['segment_id']} ----")
         global_start = time.time()
         
         #2) Get the decimated mesh
         current_neuron_mesh = du.fetch_segment_id_mesh(segment_id)
         
 
-        #3) Get the somas info *************************** Need to change this when actually run *******************
+        #3) Get the somas info 
         somas = du.get_soma_mesh_list(segment_id) 
         soma_ver = du.get_soma_mesh_list_ver(segment_id)
+                  
         
         print(f"somas = {somas}")
+                  
+        #3b) Get the glia and nuclei information 
+        glia_faces,nuclei_faces = du.get_segment_glia_nuclei_faces(segment_id,return_empty_list=True)
+        
+                  
         #4) Run the preprocessing
 
 
@@ -198,7 +220,9 @@ class Decomposition(dj.Computed):
         suppress_preprocessing_print=False,
         suppress_output=False,
         calculate_spines=True,
-        widths_to_calculate=["no_spine_median_mesh_center"]
+        widths_to_calculate=["no_spine_median_mesh_center"],
+        glia_faces=glia_faces,
+        nuclei_faces = nuclei_faces,
 
                 )
 
@@ -223,6 +247,7 @@ class Decomposition(dj.Computed):
         #7) Pass stats and file location to insert
         new_key = dict(key,
                        ver = soma_ver,
+                       process_version = process_version,
                        decomposition=ret_file_path_str,
                        n_vertices=len(current_neuron_mesh.vertices),
                        n_faces=len(current_neuron_mesh.faces),
@@ -238,11 +263,11 @@ class Decomposition(dj.Computed):
 
 # # Running the Populate
 
-# In[12]:
+# In[ ]:
 
 
 curr_table = (minnie.schema.jobs & "table_name='__decomposition'")
-(curr_table)# & "status='error'")
+(curr_table)#.delete()# & "status='error'")
 #curr_table.delete()
 #(curr_table & "error_message = 'ValueError: need at least one array to concatenate'").delete()
 
@@ -271,10 +296,4 @@ else:
 print('Populate Done')
 
 print(f"Total time for DecompositionMultiSoma populate = {time.time() - start_time}")
-
-
-# In[ ]:
-
-
-
 
