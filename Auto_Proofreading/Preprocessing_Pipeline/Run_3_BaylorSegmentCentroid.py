@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[ ]:
+# In[1]:
 
 
 """
@@ -14,13 +14,13 @@ in our final match
 """
 
 
-# In[13]:
+# In[2]:
 
 
 current_version = 30
 
 
-# In[1]:
+# In[3]:
 
 
 import numpy as np
@@ -36,13 +36,13 @@ import datajoint_utils as du
 from importlib import reload
 
 
-# In[2]:
+# In[4]:
 
 
 test_mode = False
 
 
-# In[22]:
+# In[5]:
 
 
 import minfig
@@ -61,12 +61,11 @@ du.print_minnie65_config_paths(minfig)
 
 #configuring will include the adapters
 minnie,schema = du.configure_minnie_vm()
-nucleus_table = du.configure_nucleus_table(current_version)
 
 
 # # Getting the list of neurons to decompose for the mutli soma testing
 
-# In[4]:
+# In[6]:
 
 
 # import pandas as pd
@@ -88,7 +87,7 @@ nucleus_table = du.configure_nucleus_table(current_version)
 
 # # Defining the Table
 
-# In[15]:
+# In[7]:
 
 
 import neuron_utils as nru
@@ -97,7 +96,7 @@ import trimesh_utils as tu
 import numpy as np
 
 
-# In[16]:
+# In[8]:
 
 
 import meshlab
@@ -106,14 +105,14 @@ temporary_folder = 'decimation_temp'
 meshlab_scripts = {}
 
 
-# In[17]:
+# In[9]:
 
 
 #so that it will have the adapter defined
 from datajoint_utils import *
 
 
-# In[18]:
+# In[10]:
 
 
 @schema
@@ -129,21 +128,21 @@ class NeuronGliaNuclei(dj.Manual):
     """
 
 
-# In[19]:
+# In[11]:
 
 
 # schema.external['faces'].delete(delete_external_files=True)
 # schema.external['somas'].delete(delete_external_files=True)
 
 
-# In[20]:
+# In[12]:
 
 
 # minnie.BaylorSegmentCentroid.delete()
 # minnie.NeuronGliaNuclei().delete()
 
 
-# In[24]:
+# In[13]:
 
 
 # decimation_version = 0
@@ -158,7 +157,7 @@ class NeuronGliaNuclei(dj.Manual):
 # key_source
 
 
-# In[25]:
+# In[14]:
 
 
 decimation_version = 0
@@ -192,10 +191,10 @@ class BaylorSegmentCentroid(dj.Computed):
 
     """
 
-    key_source =  ((minnie.Decimation & f"n_vertices > {verts_min}").proj(decimation_version='version') & 
+    key_source =  (((minnie.Decimation & f"n_vertices > {verts_min}").proj(decimation_version='version') & 
                             "decimation_version=" + str(decimation_version) &
-                       f"decimation_ratio={decimation_ratio}") & (dj.U("segment_id") & (minnie.OldBaylorSegmentCentroid() & "multiplicity<3").proj()
-                                                                 & (dj.U("segment_id") & nucleus_table))
+                       f"decimation_ratio={decimation_ratio}") & (dj.U("segment_id") & (minnie.OldBaylorSegmentCentroid() & "multiplicity<3").proj()) & minnie.NucleiSegmentsRun2())
+                                                                 
      
 
     def make(self,key):
@@ -370,7 +369,7 @@ class BaylorSegmentCentroid(dj.Computed):
 
 # # Running the Populate
 
-# In[26]:
+# In[15]:
 
 
 curr_table = (minnie.schema.jobs & "table_name='__baylor_segment_centroid'")
@@ -378,7 +377,7 @@ curr_table#.delete()# & "status='error'"#.delete()
 #curr_table.delete()
 
 
-# In[ ]:
+# In[16]:
 
 
 # import pandas as pd
