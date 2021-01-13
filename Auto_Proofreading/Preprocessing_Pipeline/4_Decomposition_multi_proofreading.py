@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[ ]:
+# In[1]:
 
 
 """
@@ -13,7 +13,7 @@ using the new decomposition method
 """
 
 
-# In[ ]:
+# In[15]:
 
 
 import numpy as np
@@ -29,13 +29,13 @@ import datajoint_utils as du
 from importlib import reload
 
 
-# In[ ]:
+# In[18]:
 
 
 test_mode = False
 
 
-# In[ ]:
+# In[38]:
 
 
 import minfig
@@ -58,7 +58,7 @@ minnie,schema = du.configure_minnie_vm()
 
 # # Defining the Table
 
-# In[ ]:
+# In[30]:
 
 
 import neuron_utils as nru
@@ -67,21 +67,21 @@ import trimesh_utils as tu
 import numpy as np
 
 
-# In[ ]:
+# In[31]:
 
 
 import meshlab
 meshlab.set_meshlab_port(current_port=None)
 
 
-# In[ ]:
+# In[32]:
 
 
 #so that it will have the adapter defined
 from datajoint_utils import *
 
 
-# In[ ]:
+# In[33]:
 
 
 decimation_version = 0
@@ -92,19 +92,19 @@ key_source = (minnie.Decimation().proj(decimation_version='version')  &
 key_source
 
 
-# In[ ]:
+# In[34]:
 
 
 #schema.external['decomposition'].delete(delete_external_files=True)
 
 
-# In[ ]:
+# In[35]:
 
 
 #minnie.Decomposition.drop()
 
 
-# In[ ]:
+# In[40]:
 
 
 import numpy as np
@@ -119,7 +119,9 @@ class Decomposition(dj.Computed):
     -> minnie.Decimation.proj(decimation_version='version')
     ver : decimal(6,2) #the version number of the materializaiton
     process_version : int unsigned #the version of the preprocessing pipeline run
+    index : tinyint unsigned  #the index of the neuron object that resulted from that mesh (indexed starting at 0)
     ---
+    multiplicity=null    : tinyint unsigned             # the number of somas found for this base segment
     decomposition: <decomposition>
     n_vertices           : int unsigned                 # number of vertices
     n_faces              : int unsigned                 # number of faces
@@ -248,6 +250,8 @@ class Decomposition(dj.Computed):
         new_key = dict(key,
                        ver = soma_ver,
                        process_version = process_version,
+                       index = 0,
+                       multiplicity=1,
                        decomposition=ret_file_path_str,
                        n_vertices=len(current_neuron_mesh.vertices),
                        n_faces=len(current_neuron_mesh.faces),
@@ -263,7 +267,7 @@ class Decomposition(dj.Computed):
 
 # # Running the Populate
 
-# In[ ]:
+# In[41]:
 
 
 curr_table = (minnie.schema.jobs & "table_name='__decomposition'")
@@ -296,4 +300,10 @@ else:
 print('Populate Done')
 
 print(f"Total time for DecompositionMultiSoma populate = {time.time() - start_time}")
+
+
+# In[ ]:
+
+
+
 
