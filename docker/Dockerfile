@@ -83,6 +83,9 @@ RUN pip3 install --upgrade pip
 #RUN pip3 install --upgrade cloud-volume 
 RUN pip3 install --upgrade meshparty
 
+# ------- 1/25:
+RUN pip3 install graphviz
+
 
 ADD ./jupyter/run_jupyter_unix.sh /scripts/
 ADD ./jupyter/jupyter_notebook_config.py /root/.jupyter/
