@@ -13,7 +13,7 @@ using the new decomposition method
 """
 
 
-# In[ ]:
+# In[1]:
 
 
 import numpy as np
@@ -29,20 +29,22 @@ import datajoint_utils as du
 from importlib import reload
 
 
-# In[ ]:
+# In[2]:
 
 
 #so that it will have the adapter defined
 from datajoint_utils import *
 
 
-# In[ ]:
+# In[3]:
 
 
 test_mode = False
 
 
-# In[ ]:
+# # Debugging the contains method
+
+# In[4]:
 
 
 import minfig
@@ -63,7 +65,7 @@ du.print_minnie65_config_paths(minfig)
 minnie,schema = du.configure_minnie_vm()
 
 
-# In[ ]:
+# In[5]:
 
 
 #(schema.jobs & "table_name='__decomposition'").delete()
@@ -71,7 +73,7 @@ minnie,schema = du.configure_minnie_vm()
 
 # # Defining the Table
 
-# In[ ]:
+# In[6]:
 
 
 import neuron_utils as nru
@@ -80,14 +82,14 @@ import trimesh_utils as tu
 import numpy as np
 
 
-# In[ ]:
+# In[7]:
 
 
 import meshlab
 meshlab.set_meshlab_port(current_port=None)
 
 
-# In[ ]:
+# In[10]:
 
 
 decimation_version = 0
@@ -103,14 +105,14 @@ key_source = ((minnie.Decimation).proj(decimation_version='version') &
 key_source
 
 
-# In[ ]:
+# In[11]:
 
 
 import numpy as np
 import time
 decimation_version = 0
 decimation_ratio = 0.25
-process_version = 0
+process_version = 5
 
 @schema
 class Decomposition(dj.Computed):
@@ -170,7 +172,7 @@ class Decomposition(dj.Computed):
     
     key_source = ((minnie.Decimation).proj(decimation_version='version') & 
                             "decimation_version=" + str(decimation_version) &
-                       f"decimation_ratio={decimation_ratio}" &  (minnie.BaylorSegmentCentroid() & "multiplicity>0"))
+                       f"decimation_ratio={decimation_ratio}" &  (minnie.BaylorSegmentCentroid() & "multiplicity>0")) 
                                                                   
     
 
@@ -267,7 +269,7 @@ class Decomposition(dj.Computed):
 
 # # Running the Populate
 
-# In[ ]:
+# In[19]:
 
 
 curr_table = (minnie.schema.jobs & "table_name='__decomposition'")
@@ -276,7 +278,7 @@ curr_table = (minnie.schema.jobs & "table_name='__decomposition'")
 #(curr_table & "error_message = 'ValueError: need at least one array to concatenate'").delete()
 
 
-# In[ ]:
+# In[18]:
 
 
 import time
