@@ -13,7 +13,7 @@ using the new decomposition method
 """
 
 
-# In[2]:
+# In[ ]:
 
 
 import numpy as np
@@ -29,14 +29,14 @@ import datajoint_utils as du
 from importlib import reload
 
 
-# In[3]:
+# In[ ]:
 
 
 #so that it will have the adapter defined
 from datajoint_utils import *
 
 
-# In[4]:
+# In[ ]:
 
 
 test_mode = False
@@ -44,13 +44,13 @@ test_mode = False
 
 # # Debugging the contains method
 
-# In[5]:
+# In[ ]:
 
 
 import system_utils as su
 
 
-# In[6]:
+# In[ ]:
 
 
 import minfig
@@ -73,7 +73,7 @@ minnie,schema = du.configure_minnie_vm()
 
 # # Defining the Table
 
-# In[7]:
+# In[ ]:
 
 
 import neuron_utils as nru
@@ -82,14 +82,14 @@ import trimesh_utils as tu
 import numpy as np
 
 
-# In[8]:
+# In[ ]:
 
 
 import meshlab
 meshlab.set_meshlab_port(current_port=None)
 
 
-# In[57]:
+# In[ ]:
 
 
 import numpy as np
@@ -113,7 +113,7 @@ class SpineRecalculation(dj.Computed):
     run_time=NULL : double                   # the amount of time to run (seconds)
     """
                              
-    key_source = minnie.Decomposition() & minnie.NucleiSegmentsRun2()
+    key_source = minnie.Decomposition() & minnie.NucleiSegmentsRun2() & "process_version<3"
 
     def make(self,key):
         """
@@ -196,7 +196,7 @@ class SpineRecalculation(dj.Computed):
 
 # # Running the Populate
 
-# In[58]:
+# In[ ]:
 
 
 curr_table = (minnie.schema.jobs & "table_name='__spine_recalculation'")
@@ -205,7 +205,7 @@ curr_table = (minnie.schema.jobs & "table_name='__spine_recalculation'")
 #(curr_table & "error_message = 'ValueError: need at least one array to concatenate'").delete()
 
 
-# In[59]:
+# In[ ]:
 
 
 import time
@@ -218,7 +218,7 @@ if not test_mode:
     time.sleep(random.randint(0, 800))
 print('Populate Started')
 if not test_mode:
-    SpineRecalculation.populate(reserve_jobs=True, suppress_errors=True)
+    SpineRecalculation.populate(reserve_jobs=True, suppress_errors=True, order="random")
 else:
     SpineRecalculation.populate(reserve_jobs=True, suppress_errors=False)
 print('Populate Done')
