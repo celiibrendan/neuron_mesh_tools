@@ -74,14 +74,16 @@ RUN qmake -qt=5 filter_ao.pro $QMAKE_FLAGS && make $MAKE_FLAGS
 WORKDIR /
 
 # ----- 11/19, python modules for allen institute querying -----------
-RUN pip3 install annotationframeworkclient 
-RUN pip3 install nglui 
-
 #------- 1/5: Mesh downloading add ons -----
 RUN pip3 install --upgrade pip
 #RUN pip3 install --upgrade orjson 
 #RUN pip3 install --upgrade cloud-volume 
 RUN pip3 install --upgrade meshparty
+
+
+RUN pip3 install annotationframeworkclient 
+RUN pip3 install nglui 
+
 
 # ------- 1/25:
 RUN pip3 install graphviz
