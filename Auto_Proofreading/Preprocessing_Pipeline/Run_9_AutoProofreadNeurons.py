@@ -39,7 +39,7 @@ from datajoint_utils import *
 # In[ ]:
 
 
-test_mode = False
+test_mode = True
 
 
 # # Debugging the contains method
@@ -386,13 +386,30 @@ class AutoProofreadNeurons(dj.Computed):
         total_error_synapse_ids_list = []
         
         
-        for split_index,neuron_obj in zip(neuron_split_idxs,neuron_objs):
+        for split_index,neuron_obj_pre_split in zip(neuron_split_idxs,neuron_objs):
             
             whole_pass_time = time.time()
     
             if verbose:
                 print(f"\n-----Working on Neuron Split {split_index}-----")
 
+                
+            
+            neuron_obj = neuron_obj_pre_split
+#             if neuron_obj_pre_split.n_error_limbs > 0:
+#                 if verbose:
+#                     print(f"   ---> Pre-work: Splitting Neuron Limbs Because still error limbs exist--- ")
+#                 neuron_objs_split = pru.split_neuron(neuron_obj_pre_split,
+#                                              verbose=False)
+                
+#                 if len(neuron_objs_split) > 1:
+#                     raise Exception(f"After splitting the neuron there were more than 1: {neuron_objs_split}")
+
+#                 neuron_obj= neuron_objs_split[0]
+#             else:
+#                 neuron_obj = neuron_obj_pre_split
+            
+            
 
             # Part A: Proofreading the Neuron
             if verbose:
@@ -401,11 +418,13 @@ class AutoProofreadNeurons(dj.Computed):
 
         #     nviz.visualize_neuron(neuron_obj,
         #                       limb_branch_dict="all")
+        
+        
 
             output_dict= pru.proofread_neuron(neuron_obj,
                                 plot_limb_branch_filter_with_disconnect_effect=False,
                                 plot_final_filtered_neuron=False,
-                                verbose=False)
+                                verbose=True)
 
             filtered_neuron = output_dict["filtered_neuron"]
             cell_type_info = output_dict["cell_type_info"]
@@ -583,6 +602,21 @@ class AutoProofreadNeurons(dj.Computed):
         
         proofread_stats_entries = []
         
+        stats_to_make_sure_in_proofread_stats = [
+            
+         'axon_on_dendrite_merges_error_area',
+         'axon_on_dendrite_merges_error_length',
+         'low_branch_clusters_error_area',
+         'low_branch_clusters_error_length',
+         'dendrite_on_axon_merges_error_area',
+         'dendrite_on_axon_merges_error_length',
+         'double_back_and_width_change_error_area',
+         'double_back_and_width_change_error_length',
+         'crossovers_error_area',
+         'crossovers_error_length',
+         'high_degree_coordinates_error_area',
+         'high_degree_coordinates_error_length',
+        ]
         
         
         for sp_idx,split_index in enumerate(neuron_split_idxs):
@@ -602,6 +636,11 @@ class AutoProofreadNeurons(dj.Computed):
                            
                            )
             
+            
+            for s in stats_to_make_sure_in_proofread_stats:
+                if s not in filtering_info.keys():
+                    curr_key[s] = None
+            
             filter_key = {k:np.round(v,2) for k,v in filtering_info.items() if "area" in k or "length" in k}
             curr_key.update(filter_key)
             curr_key.update(overall_syn_error_rates)
@@ -612,7 +651,6 @@ class AutoProofreadNeurons(dj.Computed):
         ProofreadStats.insert(proofread_stats_entries,skip_duplicates=True)
 
             
-        
 
         print(f"\n\n ***------ Total time for {key['segment_id']} = {time.time() - whole_pass_time} ------ ***")
     
