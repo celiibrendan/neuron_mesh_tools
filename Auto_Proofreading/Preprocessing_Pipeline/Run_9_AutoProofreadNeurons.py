@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[ ]:
+# In[1]:
 
 
 """
@@ -10,10 +10,11 @@ using the new decomposition method
 
 
 
+
 """
 
 
-# In[ ]:
+# In[2]:
 
 
 import numpy as np
@@ -24,33 +25,34 @@ from pathlib import Path
 
 from os import sys
 sys.path.append("/meshAfterParty/")
+sys.path.append("/meshAfterParty/meshAfterParty")
 
 import datajoint_utils as du
 from importlib import reload
 
 
-# In[ ]:
+# In[3]:
 
 
 #so that it will have the adapter defined
 from datajoint_utils import *
 
 
-# In[ ]:
+# In[4]:
 
 
-test_mode = True
+test_mode = False
 
 
 # # Debugging the contains method
 
-# In[ ]:
+# In[5]:
 
 
 import system_utils as su
 
 
-# In[ ]:
+# In[6]:
 
 
 import minfig
@@ -71,7 +73,7 @@ du.print_minnie65_config_paths(minfig)
 minnie,schema = du.configure_minnie_vm()
 
 
-# In[ ]:
+# In[7]:
 
 
 from importlib import reload
@@ -117,7 +119,7 @@ import numpy as np
 
 # # Defining the Table
 
-# In[ ]:
+# In[8]:
 
 
 import neuron_utils as nru
@@ -126,7 +128,7 @@ import trimesh_utils as tu
 import numpy as np
 
 
-# In[ ]:
+# In[9]:
 
 
 import meshlab
@@ -135,24 +137,26 @@ meshlab.set_meshlab_port(current_port=None)
 
 # # Defining the Synapse Table
 
-# In[ ]:
+# In[10]:
 
 
 @schema
-class SynapseProofread(dj.Manual):
+class AutoProofreadSynapse2(dj.Manual):
     definition="""
     synapse_id           : bigint unsigned              # synapse index within the segmentation
     synapse_type: enum('presyn','postsyn')
+    ver                  : decimal(6,2)                 # the version number of the materializaiton
     ---
     segment_id           : bigint unsigned              # segment_id of the cell. Equivalent to Allen 'pt_root_id
     split_index          : tinyint unsigned             # the index of the neuron object that resulted AFTER THE SPLITTING ALGORITHM
     nucleus_id           : int unsigned                 # id of nucleus from the flat segmentation  Equivalent to Allen: 'id'. 
+    skeletal_distance_to_soma=NULL : double #the length (in um) of skeleton distance from synapse to soma (-1 if on the soma)
     """
 
 
 # # Defining the Proofreading Stats Table
 
-# In[ ]:
+# In[11]:
 
 
 """
@@ -163,20 +167,26 @@ This table will include the following information:
 3) Synapse Stats for Segment
 
 
-
+**** thing need to add:
+1) Axon faces
+2) Axon length/area
+2) Neuron faces
+3) n_presyn_error_syn_non_axon
 """
 
 
-# In[ ]:
+# In[12]:
 
 
 @schema
-class ProofreadStats(dj.Manual):
+class AutoProofreadStats2(dj.Manual):
     definition="""
     -> minnie.Decomposition()
     split_index          : tinyint unsigned             # the index of the neuron object that resulted AFTER THE SPLITTING ALGORITHM
     proof_version    : tinyint unsigned             # the version of code used for this cell typing classification
     ---
+    mesh_faces: <faces>                      # faces indices that were saved off as belonging to proofread neuron (external storage)
+    axon_faces: <faces>                      # faces indices that were saved off as belonging to proofread neuron's axon (external storage)
     
     axon_on_dendrite_merges_error_area=NULL : double #the area (in um ^ 2) of the faces canceled out by filter
     axon_on_dendrite_merges_error_length=NULL : double #the length (in um) of skeleton distance canceled out by filter
@@ -199,6 +209,7 @@ class ProofreadStats(dj.Manual):
     # ------------ For local valid synapses to that split_index
     n_valid_syn_presyn_for_split: int unsigned
     n_valid_syn_postsyn_for_split : int unsigned
+    n_presyn_error_syn_non_axon :int unsigned
     
     # ------------ For global stats belonging to the whole segment
     # For the whole segment
@@ -221,28 +232,29 @@ class ProofreadStats(dj.Manual):
 
 # # Creating the Auto Proofread Neuron Table
 
-# In[ ]:
+# In[13]:
 
 
-# minnie.AutoProofreadNeurons.drop()
-# minnie.ProofreadStats.drop()
-# minnie.SynapseProofread.drop()
+# minnie,schema = du.configure_minnie_vm()
+# minnie.AutoProofreadNeurons2.drop()
+# minnie.AutoProofreadStats2.drop()
+# minnie.AutoProofreadSynapse2.drop()
 # minnie.schema.external['faces'].delete(delete_external_files=True)
 
 
-# In[ ]:
+# In[14]:
 
 
 import numpy as np
 import time
 import classification_utils as clu
 
-proof_version = 0
+proof_version = 1
 
 verbose = True
 
 @schema
-class AutoProofreadNeurons(dj.Computed):
+class AutoProofreadNeurons2(dj.Computed):
     definition="""
     -> minnie.Decomposition()
     split_index          : tinyint unsigned             # the index of the neuron object that resulted AFTER THE SPLITTING ALGORITHM
@@ -256,6 +268,8 @@ class AutoProofreadNeurons(dj.Computed):
     n_axons: tinyint unsigned             # Number of axon candidates identified
     n_apicals: tinyint unsigned             # Number of apicals identified
     
+    axon_length: double  # length (in um) of the classified axon skeleton
+    axon_area: double # # area (in um^2) of the classified axon
     
     # ----- Soma Information ----#
     nucleus_id           : int unsigned                 # id of nucleus from the flat segmentation  Equivalent to Allen: 'id'.
@@ -270,8 +284,7 @@ class AutoProofreadNeurons(dj.Computed):
     max_soma_n_faces     : int unsigned                 # The largest number of faces of the somas
     max_soma_volume      : int unsigned                 # The largest volume of the somas the (volume in billions (10*9 nm^3))
     
-    # ---- Stores Neuron Mesh Faces --------
-    mesh_faces: <faces>                      # faces indices that were saved off as belonging to proofread neuron (external storage)
+    # ---- Stores Neuron Mesh Faces (moved to AutoProofreadStats) --------
     
     
     # ------------- The Regular Neuron Information ----------------- #
@@ -354,239 +367,24 @@ class AutoProofreadNeurons(dj.Computed):
         # 1) Pull Down All of the Neurons
         segment_id = key["segment_id"]
         
-        print(f"\n\n------- AutoProofreadNeuron {segment_id}  ----------")
-        
-        neuron_objs,neuron_split_idxs = du.decomposition_with_spine_recalculation(segment_id)
-        
-        if verbose:
-            print(f"Number of Neurons found ={len(neuron_objs)}")
-        
-        
-        # 2)  ----- Pre-work ------
-
-        nucleus_ids,nucleus_centers = du.segment_to_nuclei(segment_id)
-
-        if verbose:
-            print(f"Number of Corresponding Nuclei = {len(nucleus_ids)}")
-            print(f"nucleus_ids = {nucleus_ids}")
-            print(f"nucleus_centers = {nucleus_centers}")
-
-
-
-        original_mesh = du.fetch_segment_id_mesh(segment_id)
-        original_mesh_kdtree = KDTree(original_mesh.triangles_center)
-        
-        
-        
-        # 3) ----- Iterate through all of the Neurons and Proofread --------
-        
-        # lists to help save stats until write to ProofreadStats Table
-        filtering_info_list = []
-        synapse_stats_list = []
-        total_error_synapse_ids_list = []
-        
-        
-        for split_index,neuron_obj_pre_split in zip(neuron_split_idxs,neuron_objs):
-            
-            whole_pass_time = time.time()
-    
-            if verbose:
-                print(f"\n-----Working on Neuron Split {split_index}-----")
-
-                
-            
-            neuron_obj = neuron_obj_pre_split
-#             if neuron_obj_pre_split.n_error_limbs > 0:
-#                 if verbose:
-#                     print(f"   ---> Pre-work: Splitting Neuron Limbs Because still error limbs exist--- ")
-#                 neuron_objs_split = pru.split_neuron(neuron_obj_pre_split,
-#                                              verbose=False)
-                
-#                 if len(neuron_objs_split) > 1:
-#                     raise Exception(f"After splitting the neuron there were more than 1: {neuron_objs_split}")
-
-#                 neuron_obj= neuron_objs_split[0]
-#             else:
-#                 neuron_obj = neuron_obj_pre_split
-            
-            
-
-            # Part A: Proofreading the Neuron
-            if verbose:
-                print(f"\n   --> Part A: Proofreading the Neuron ----")
-
-
-        #     nviz.visualize_neuron(neuron_obj,
-        #                       limb_branch_dict="all")
-        
+        whole_pass_time = time.time()
         
 
-            output_dict= pru.proofread_neuron(neuron_obj,
-                                plot_limb_branch_filter_with_disconnect_effect=False,
-                                plot_final_filtered_neuron=False,
-                                verbose=True)
-
-            filtered_neuron = output_dict["filtered_neuron"]
-            cell_type_info = output_dict["cell_type_info"]
-            filtering_info = output_dict["filtering_info"]
-
+        curr_output = pru.proofreading_table_processing(key,
+                                  proof_version=proof_version,
+                                  compute_synapse_to_soma_skeletal_distance=True,
+                                 verbose=True,)    
+        # ------ Writing the Data To the Tables ----- #
             
             
-
-
-            # Part B: Getting Soma Centers and Matching To Nuclei
-            if verbose:
-                print(f"\n\n    --> Part B: Getting Soma Centers and Matching To Nuclei ----")
-
-
-            winning_nucleus_id, nucleus_info = nru.pair_segment_id_to_nuclei(neuron_obj,
-                                     "S0",
-                                      nucleus_ids,
-                                      nucleus_centers,
-                                     nuclei_distance_threshold = 15000,
-                                      return_matching_info = True,
-                                     verbose=True)
-
-            if verbose:
-                print(f"nucleus_info = {nucleus_info}")
-                print(f"winning_nucleus_id = {winning_nucleus_id}")
-
-            
-
-
-
-
-
-            # Part C: Getting the Faces of the Original Mesh
-            if verbose:
-                print(f"\n\n    --> Part C: Getting the Faces of the Original Mesh ----")
-
-            original_mesh_faces = tu.original_mesh_faces_map(original_mesh,
-                                                        filtered_neuron.mesh,
-                                                        exact_match=True,
-                                                        original_mesh_kdtree=original_mesh_kdtree)
-            
-            original_mesh_faces_file = du.save_proofread_faces(original_mesh_faces,
-                                                              segment_id=segment_id,
-                                                              split_index=split_index)
-
-            
-
-        #     nviz.plot_objects(recovered_mesh)
-
-
-
-
-
-
-            # Part D: Getting the Synapse Information
-            if verbose:
-                print(f"\n\n    --> Part D: Getting the Synapse Information ----")
-
-
-            (keys_to_write,
-             synapse_stats,
-             total_error_synapse_ids) = pru.synapse_filtering(filtered_neuron,
-                            split_index,
-                            nucleus_id=winning_nucleus_id,
-                            segment_id=None,
-                            return_synapse_filter_info = True,
-                            return_synapse_center_data = False,
-                            return_error_synapse_ids = True,
-                            mapping_threshold = 500,
-                              plot_synapses=False,
-                            verbose = True,
-                            original_mesh_method = True,
-                            original_mesh = original_mesh,
-                            original_mesh_kdtree = original_mesh_kdtree,
-                            valid_faces_on_original_mesh=original_mesh_faces, 
-                                                          
-                            )
-
-
-            
-
-
-
-            soma_x,soma_y,soma_z = nru.soma_centers(filtered_neuron,
-                                               soma_name="S0",
-                                               voxel_adjustment=True)
-
-        
-        
-        
-            
-            #7) Creating the dictionary to insert into the AutoProofreadNeuron
-            new_key = dict(key,
-                           split_index = split_index,
-                           proof_version = proof_version,
-                           
-                           multiplicity = len(neuron_objs),
-                           
-                           # -------- Important Excitatory Inhibitory Classfication ------- #
-                        cell_type_predicted = cell_type_info["inh_exc_class"],
-                        spine_category=cell_type_info["spine_category"],
-
-                        n_axons=cell_type_info["n_axons"],
-                        n_apicals=cell_type_info["n_axons"],
-                           
-                           
-                        
-    
-                        # ----- Soma Information ----#
-                        nucleus_id         = nucleus_info["nuclei_id"],
-                        nuclei_distance      = np.round(nucleus_info["nuclei_distance"],2),
-                        n_nuclei_in_radius   = nucleus_info["n_nuclei_in_radius"],
-                        n_nuclei_in_bbox     = nucleus_info["n_nuclei_in_bbox"],
-
-                        soma_x           = soma_x,
-                        soma_y           =soma_y,
-                        soma_z           =soma_z,
-
-                        # ---------- Mesh Faces ------ #
-                        mesh_faces = original_mesh_faces_file,
-
-                           
-                        # ------------- The Regular Neuron Information (will be computed in the stats dict) ----------------- #
-                        
-                        
-                        
-                           # ------ Information Used For Excitatory Inhibitory Classification -------- 
-                        axon_angle_maximum=cell_type_info["axon_angle_maximum"],
-                        spine_density_classifier=cell_type_info["neuron_spine_density"],
-                        n_branches_processed=cell_type_info["n_branches_processed"],
-                        skeletal_length_processed=cell_type_info["skeletal_length_processed"],
-                        n_branches_in_search_radius=cell_type_info["n_branches_in_search_radius"],
-                        skeletal_length_in_search_radius=cell_type_info["skeletal_length_in_search_radius"],
-
-                           
-                        
-                           
-                           run_time=np.round(time.time() - whole_pass_time,4)
-                          )
-            
-            
-            
-            
-            
-            
-            
-            stats_dict = filtered_neuron.neuron_stats()
-            new_key.update(stats_dict)
-
-            
-            # ------ Writing the Data To the Tables ----- #
-            SynapseProofread.insert(keys_to_write,skip_duplicates=True)
-            
-            self.insert1(new_key,skip_duplicates=True,allow_direct_insert=True)
-            
-            
-            
-            #saving following information for later processing:
-            filtering_info_list.append(filtering_info)
-            synapse_stats_list.append(synapse_stats)
-            total_error_synapse_ids_list.append(total_error_synapse_ids)
-            
+        AutoProofreadSynapse_keys = curr_output["AutoProofreadSynapse_keys"]
+        AutoProofreadNeurons_keys = curr_output["AutoProofreadNeurons_keys"]
+        filtering_info_list = curr_output["filtering_info_list"]
+        synapse_stats_list = curr_output["synapse_stats_list"]
+        total_error_synapse_ids_list = curr_output["total_error_synapse_ids_list"]
+        neuron_mesh_list = curr_output["neuron_mesh_list"]
+        axon_mesh_list = curr_output["axon_mesh_list"]
+        neuron_split_idxs = curr_output["neuron_split_idxs"]
             
         
         # Once have inserted all the new neurons need to compute the stats
@@ -620,6 +418,18 @@ class AutoProofreadNeurons(dj.Computed):
         
         
         for sp_idx,split_index in enumerate(neuron_split_idxs):
+            
+            #write the AutoProofreadNeurons and AutoProofreadSynapse Tabel
+            keys_to_write = AutoProofreadSynapse_keys[sp_idx]
+            AutoProofreadSynapse2.insert(keys_to_write,skip_duplicates=True)
+            
+            new_key = AutoProofreadNeurons_keys[sp_idx]
+            self.insert1(new_key,skip_duplicates=True,allow_direct_insert=True)
+            
+            
+            
+            
+            
             synapse_stats = synapse_stats_list[sp_idx]
             filtering_info = filtering_info_list[sp_idx]
             
@@ -627,11 +437,14 @@ class AutoProofreadNeurons(dj.Computed):
                            split_index = split_index,
                            proof_version = proof_version,
                            
+                             mesh_faces = neuron_mesh_list[sp_idx],
+                            axon_faces = axon_mesh_list[sp_idx],
+                         
 
                             # ------------ For local valid synapses to that split_index
                             n_valid_syn_presyn_for_split=synapse_stats["n_valid_syn_presyn"],
                             n_valid_syn_postsyn_for_split=synapse_stats["n_valid_syn_postsyn"],
-
+                            n_presyn_error_syn_non_axon=synapse_stats["n_errored_syn_presyn_non_axon"],
                            
                            
                            )
@@ -648,7 +461,7 @@ class AutoProofreadNeurons(dj.Computed):
             proofread_stats_entries.append(curr_key)
             
         
-        ProofreadStats.insert(proofread_stats_entries,skip_duplicates=True)
+        AutoProofreadStats2.insert(proofread_stats_entries,skip_duplicates=True)
 
             
 
@@ -658,16 +471,16 @@ class AutoProofreadNeurons(dj.Computed):
 
 # # Running the Populate
 
-# In[ ]:
+# In[16]:
 
 
-curr_table = (minnie.schema.jobs & "table_name='__auto_proofread_neurons'")
+curr_table = (minnie.schema.jobs & "table_name='__auto_proofread_neurons2'")
 (curr_table)#.delete()# & "status='error'")
 #curr_table.delete()
 #(curr_table & "error_message = 'ValueError: need at least one array to concatenate'").delete()
 
 
-# In[ ]:
+# In[17]:
 
 
 import time
@@ -683,12 +496,12 @@ if not test_mode:
     time.sleep(random.randint(0, 800))
 print('Populate Started')
 if not test_mode:
-    AutoProofreadNeurons.populate(reserve_jobs=True, suppress_errors=False, order="random")
+    AutoProofreadNeurons2.populate(reserve_jobs=True, suppress_errors=True, order="random")
 else:
-    AutoProofreadNeurons.populate(reserve_jobs=True, suppress_errors=False, order="random")
+    AutoProofreadNeurons2.populate(reserve_jobs=True, suppress_errors=False, order="random")
 print('Populate Done')
 
-print(f"Total time for AutoProofreadNeuron populate = {time.time() - start_time}")
+print(f"Total time for AutoProofreadNeuron2 populate = {time.time() - start_time}")
 
 
 # In[ ]:
