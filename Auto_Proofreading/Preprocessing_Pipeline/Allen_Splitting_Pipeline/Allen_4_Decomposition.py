@@ -13,7 +13,7 @@ using the new decomposition method
 """
 
 
-# In[2]:
+# In[ ]:
 
 
 import numpy as np
@@ -24,19 +24,20 @@ from pathlib import Path
 
 from os import sys
 sys.path.append("/meshAfterParty/")
+sys.path.append("/meshAfterParty/meshAfterParty")
 
 import datajoint_utils as du
 from importlib import reload
 
 
-# In[3]:
+# In[ ]:
 
 
 #so that it will have the adapter defined
 from datajoint_utils import *
 
 
-# In[4]:
+# In[ ]:
 
 
 test_mode = False
@@ -44,7 +45,7 @@ test_mode = False
 
 # # Debugging the contains method
 
-# In[5]:
+# In[ ]:
 
 
 import minfig
@@ -65,7 +66,7 @@ du.print_minnie65_config_paths(minfig)
 minnie,schema = du.configure_minnie_vm()
 
 
-# In[6]:
+# In[ ]:
 
 
 #(schema.jobs & "table_name='__decomposition'").delete()
@@ -73,7 +74,7 @@ minnie,schema = du.configure_minnie_vm()
 
 # # Defining the Table
 
-# In[7]:
+# In[ ]:
 
 
 import neuron_utils as nru
@@ -82,14 +83,14 @@ import trimesh_utils as tu
 import numpy as np
 
 
-# In[8]:
+# In[ ]:
 
 
 import meshlab
 meshlab.set_meshlab_port(current_port=None)
 
 
-# In[9]:
+# In[ ]:
 
 
 decimation_version = 0
@@ -97,18 +98,42 @@ decimation_ratio = 0.25
 
 key_source = ((minnie.Decimation).proj(decimation_version='version') & 
                             "decimation_version=" + str(decimation_version) &
-                       f"decimation_ratio={decimation_ratio}" &  (minnie.BaylorSegmentCentroid() & "multiplicity>0") & minnie.MultiSomaProofread2())
+                       f"decimation_ratio={decimation_ratio}" &  (minnie.BaylorSegmentCentroid() & "multiplicity>0")  & (minnie.AllenProofreading() & dict(month=3,day=3,year=2021)).proj())
 key_source                 
 
 
-# In[10]:
+# In[ ]:
+
+
+#minnie.DecompositionVersions.insert1(dict(process_version=6,description="3/4: retry limb processing with meshparty if meshafterparty fails"),skip_duplicates=True)
+
+
+# In[ ]:
+
+
+# schema.external['decomposition'].delete(delete_external_files=True)
+# schema.external['somas'].delete(delete_external_files=True)
+# schema.external['faces'].delete(delete_external_files=True)
+# # schema.external['decimated_meshes'].delete(delete_external_files=True)
+
+
+# In[ ]:
+
+
+# key_source = ((minnie.Decimation).proj(decimation_version='version') & 
+#                             "decimation_version=" + str(decimation_version) &
+#                        f"decimation_ratio={decimation_ratio}" &  (minnie.BaylorSegmentCentroid() & "multiplicity>0")  & (minnie.AllenProofreading() & dict(month=3,day=3,year=2021)).proj())               
+# minnie.Decomposition() & key_source
+
+
+# In[ ]:
 
 
 import numpy as np
 import time
 decimation_version = 0
 decimation_ratio = 0.25
-process_version = 0
+process_version = 6
 
 @schema
 class Decomposition(dj.Computed):
@@ -168,9 +193,7 @@ class Decomposition(dj.Computed):
     
     key_source = ((minnie.Decimation).proj(decimation_version='version') & 
                             "decimation_version=" + str(decimation_version) &
-                       f"decimation_ratio={decimation_ratio}" &  (minnie.BaylorSegmentCentroid() & "multiplicity>0") & 
-                  minnie.MultiSomaProofread2())
-                                          
+                       f"decimation_ratio={decimation_ratio}" &  (minnie.BaylorSegmentCentroid() & "multiplicity>0")  & (minnie.AllenProofreading() & dict(month=3,day=3,year=2021)).proj())               
     
 
     def make(self,key):
@@ -257,6 +280,14 @@ class Decomposition(dj.Computed):
                        run_time=np.round(time.time() - whole_pass_time,4)
                       )
         new_key.update(stats_dict)
+        
+        keys_to_delete = ["axon_length",
+        "axon_area",
+        "max_soma_volume",
+        "max_soma_n_faces"]
+        
+        for k_to_delete in keys_to_delete:
+            del new_key[k_to_delete]
 
         self.insert1(new_key, allow_direct_insert=True, skip_duplicates=True)
 
@@ -266,16 +297,16 @@ class Decomposition(dj.Computed):
 
 # # Running the Populate
 
-# In[14]:
+# In[ ]:
 
 
 curr_table = (minnie.schema.jobs & "table_name='__decomposition'")
-#(curr_table & "status='error'").delete()
+(curr_table).delete()
 #curr_table.delete()
 #(curr_table & "error_message = 'ValueError: need at least one array to concatenate'").delete()
 
 
-# In[12]:
+# In[ ]:
 
 
 import time
