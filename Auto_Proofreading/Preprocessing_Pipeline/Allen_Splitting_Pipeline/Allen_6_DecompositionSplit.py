@@ -24,6 +24,7 @@ from pathlib import Path
 
 from os import sys
 sys.path.append("/meshAfterParty/")
+sys.path.append("/meshAfterParty/meshAfterParty/")
 
 import datajoint_utils as du
 from importlib import reload
@@ -57,7 +58,7 @@ import minfig
 import time
 import numpy as np
 #want to add in a wait for the connection part
-random_sleep_sec = np.random.randint(0, 100)
+random_sleep_sec = np.random.randint(0, 200)
 print(f"Sleeping {random_sleep_sec} sec before conneting")
 if not test_mode:
     time.sleep(random_sleep_sec)
@@ -92,15 +93,13 @@ meshlab.set_meshlab_port(current_port=None)
 # In[ ]:
 
 
-# minnie.DecompositionSplit.drop()
 # schema.external['decomposition'].delete(delete_external_files=True)
 
 
 # In[ ]:
 
 
-# This keysource acounts that you could have more than 1 possible soma but not a significant limb connecting them (no error limbs)
-key_source = minnie.Decomposition() & minnie.MultiSomaProofread2().proj() & "n_somas>1 OR n_error_limbs>0"
+key_source = minnie.Decomposition() & (minnie.AllenProofreading() & dict(month=3,day=3,year=2021)).proj()
 key_source
 
 
@@ -111,7 +110,9 @@ import numpy as np
 import time
 import proofreading_utils as pru
 
-max_n_somas=8
+split_version = 0
+split_version = 1 #fixed the problem with split from suggestions
+split_version = 2 #fixed the problem with split from suggestions
 
 verbose = True
 
@@ -120,13 +121,23 @@ class DecompositionSplit(dj.Computed):
     definition="""
     -> minnie.Decomposition()
     split_index: tinyint unsigned  #the index of the neuron object that resulted AFTER THE SPLITTING ALGORITHM
+    split_version: tinyint unsigned  #the version of the splitting algorithm used
     ---
     multiplicity=null    : tinyint unsigned             # the number of somas found for this base segment
     n_splits             : int unsigned                 # the number of cuts required to help split the neuron
     split_success        : tinyint unsigned             # the successfulness of the splitting
-    n_limbs_cancelled    : tinyint unsigned             # the number of limbs cancelled out in order to split the soma because no split found
+    
+    n_error_limbs_cancelled : tinyint unsigned     # number of limbs that couldn't be resolved and cancelled out        
+    n_same_soma_limbs_cancelled : tinyint unsigned     # number of same soma touching limbs that couldn't be resolved and cancelled out
+    n_multi_soma_limbs_cancelled : tinyint unsigned     # number of multi soma touching limbs that couldn't be resolved and cancelled out        
+    
+    error_imbs_cancelled_area=NULL : double            # the total area (in microns^2) of the limbs that was cancelled out because touching the same soma multiple times or multiple somas
+    error_imbs_cancelled_skeletal_length = NULL : double #the total skeletal length (in microns) of the limbs that were called out because could not be resolved
+    
     split_results: longblob #will store the results of how to split the limbs of neuron objects from original neuron
     decomposition: <decomposition>
+    
+    
     n_vertices           : int unsigned                 # number of vertices
     n_faces              : int unsigned                 # number of faces
     n_not_processed_soma_containing_meshes : int unsigned  #the number of meshes with somas that were not processed
@@ -185,8 +196,7 @@ class DecompositionSplit(dj.Computed):
                 & f"n_somas<{max_n_somas}" & "n_error_limbs>0"))'''
     
     # This keysource acounts that you could have more than 1 possible soma but not a significant limb connecting them (no error limbs)
-    key_source = minnie.Decomposition() & minnie.MultiSomaProofread2().proj() & "n_somas>1 OR n_error_limbs>0"
-
+    key_source = minnie.Decomposition() & "n_somas>1 OR n_error_limbs>0" & (minnie.AllenProofreading() & dict(month=3,day=3,year=2021)).proj()
     
 
     def make(self,key):
@@ -234,10 +244,21 @@ class DecompositionSplit(dj.Computed):
             
             
         # 5) Split the neuron into a list of neuron objects
-        neuron_list,neuron_obj_errored_limbs = pru.split_neuron(neuron_obj,
+        (neuron_list,
+        neuron_list_errored_limbs_area,
+         neuron_list_errored_limbs_skeletal_length,
+        neuron_list_n_multi_soma_errors,
+        neuron_list_n_same_soma_errors) = pru.split_neuron(neuron_obj,
                         limb_results=split_results,
-                                       verbose=verbose
+                                       verbose=verbose,
+                                        return_error_info=True
                                             )
+        
+        print(f"neuron_list = {neuron_list}")
+        print(f"neuron_list_errored_limbs_area = {neuron_list_errored_limbs_area}")
+        print(f"neuron_list_n_multi_soma_errors = {neuron_list_n_multi_soma_errors}")
+        print(f"neuron_list_n_same_soma_errors = {neuron_list_n_same_soma_errors}")
+        
         
         if verbose:
             print(f"Number of neurons: {len(neuron_list)}")
@@ -253,7 +274,13 @@ class DecompositionSplit(dj.Computed):
             # - Add the new write key to a list to commit 
             """
             n = neuron_list[neuron_idx]
-            n_limbs_cancelled = neuron_obj_errored_limbs[neuron_idx]
+            
+            error_imbs_cancelled_area = neuron_list_errored_limbs_area[neuron_idx]
+            error_imbs_cancelled_skeletal_length = neuron_list_errored_limbs_skeletal_length[neuron_idx]
+            n_multi_soma_limbs_cancelled = neuron_list_n_multi_soma_errors[neuron_idx]
+            n_same_soma_limbs_cancelled = neuron_list_n_same_soma_errors[neuron_idx]
+            
+            
             #for n in neuron_list:
             #     nviz.visualize_neuron(n,
             #                          limb_branch_dict="all")
@@ -282,7 +309,9 @@ class DecompositionSplit(dj.Computed):
                 print(f"largest_n_faces = {largest_n_faces}")
                 print(f"largest_volume = {largest_volume}")
 
-
+            if "split" not in n.description:
+                n.description += "_soma_0_split"
+                
             #6) Save the file in a certain location
             if True:
                 save_time = time.time()
@@ -294,18 +323,28 @@ class DecompositionSplit(dj.Computed):
                 ret_file_path_str = str(ret_file_path.absolute()) + ".pbz2"
                 print(f"Save time = {time.time() - save_time}")
             else:
-                ret_file_path_str = "dummy_holder"
+                print("Storing a dummy value for neuron")
+                ret_file_path_str = "dummy"
 
 
 
             #7) Pass stats and file location to insert
             new_key = dict(key,
                            split_index = neuron_idx,
+                           split_version = split_version,
+                           
                            multiplicity=len(neuron_list),
 
                            n_splits = n_paths_cut,
                            split_success = split_success,
-                           n_limbs_cancelled=n_limbs_cancelled,
+                           
+                           n_error_limbs_cancelled = len(error_imbs_cancelled_area),
+                           
+                           n_multi_soma_limbs_cancelled =n_multi_soma_limbs_cancelled,
+                           n_same_soma_limbs_cancelled = n_same_soma_limbs_cancelled,
+                           error_imbs_cancelled_area = np.round(np.sum(error_imbs_cancelled_area),4),
+                           error_imbs_cancelled_skeletal_length = np.round(np.sum(error_imbs_cancelled_skeletal_length)/1000,4),
+                           
                            split_results=split_results,
 
                            max_soma_n_faces = largest_n_faces,
@@ -320,15 +359,21 @@ class DecompositionSplit(dj.Computed):
 
             stats_dict = n.neuron_stats()
             new_key.update(stats_dict)
+            
+            keys_to_delete = ["axon_length",
+            "axon_area"]
+
+            for k_to_delete in keys_to_delete:
+                del new_key[k_to_delete]
 
 
             neuron_entries.append(new_key)
 
         
         self.insert(neuron_entries, allow_direct_insert=True, skip_duplicates=True)
+        
 
         print(f"\n\n ------ Total time for {segment_id} = {time.time() - whole_pass_time} ------")
-    
 
 
 # # Running the Populate
@@ -349,10 +394,12 @@ import time
 import random
 pru = reload(pru)
 nru = reload(nru)
+import neuron
+neuron = reload(neuron)
 
 start_time = time.time()
 if not test_mode:
-    time.sleep(random.randint(0, 300))
+    time.sleep(random.randint(0, 800))
 print('Populate Started')
 if not test_mode:
     DecompositionSplit.populate(reserve_jobs=True, suppress_errors=True)
