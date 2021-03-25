@@ -99,7 +99,7 @@ meshlab.set_meshlab_port(current_port=None)
 # In[ ]:
 
 
-key_source = minnie.Decomposition() & (minnie.AllenProofreading() & dict(month=3,day=3,year=2021)).proj()
+key_source = minnie.Decomposition() & (minnie.AllenProofreading() & dict(month=3,day=18,year=2021)).proj()
 key_source
 
 
@@ -196,7 +196,7 @@ class DecompositionSplit(dj.Computed):
                 & f"n_somas<{max_n_somas}" & "n_error_limbs>0"))'''
     
     # This keysource acounts that you could have more than 1 possible soma but not a significant limb connecting them (no error limbs)
-    key_source = minnie.Decomposition() & "n_somas>1 OR n_error_limbs>0" & (minnie.AllenProofreading() & dict(month=3,day=3,year=2021)).proj()
+    key_source = minnie.Decomposition() & "n_somas>1 OR n_error_limbs>0" & (minnie.AllenProofreading() & dict(month=3,day=18,year=2021)).proj()
     
 
     def make(self,key):
@@ -227,7 +227,12 @@ class DecompositionSplit(dj.Computed):
         
         
         # 2) Get the decomposed neuron object from Decomposition table and the split suggestions
-        neuron_obj = (minnie.Decomposition & key).fetch1("decomposition")
+#         try:
+#             neuron_obj = (minnie.Decomposition & key).fetch1("decomposition")
+#         except:
+#             neuron_obj = du.fetch_neuron_obj_manual(segment_id)
+            
+        neuron_obj = du.fetch_neuron_obj_manual(segment_id)
         
         """ Old way that downloaded from another table
         # 3) Retrieve the multi soma suggestions
