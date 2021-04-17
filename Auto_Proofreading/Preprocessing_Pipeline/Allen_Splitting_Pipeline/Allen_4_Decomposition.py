@@ -13,7 +13,7 @@ using the new decomposition method
 """
 
 
-# In[1]:
+# In[ ]:
 
 
 import numpy as np
@@ -30,14 +30,14 @@ import datajoint_utils as du
 from importlib import reload
 
 
-# In[2]:
+# In[ ]:
 
 
 #so that it will have the adapter defined
 from datajoint_utils import *
 
 
-# In[3]:
+# In[ ]:
 
 
 test_mode = False
@@ -45,7 +45,7 @@ test_mode = False
 
 # # Debugging the contains method
 
-# In[4]:
+# In[ ]:
 
 
 import minfig
@@ -66,7 +66,7 @@ du.print_minnie65_config_paths(minfig)
 minnie,schema = du.configure_minnie_vm()
 
 
-# In[5]:
+# In[ ]:
 
 
 #(schema.jobs & "table_name='__decomposition'").delete()
@@ -74,7 +74,7 @@ minnie,schema = du.configure_minnie_vm()
 
 # # Defining the Table
 
-# In[6]:
+# In[ ]:
 
 
 import neuron_utils as nru
@@ -83,20 +83,20 @@ import trimesh_utils as tu
 import numpy as np
 
 
-# In[7]:
+# In[ ]:
 
 
 import meshlab
 meshlab.set_meshlab_port(current_port=None)
 
 
-# In[8]:
+# In[ ]:
 
 
 decimation_version = 0
 decimation_ratio = 0.25
 
-current_allen_table = (minnie.AllenProofreading() & dict(month=3,day=3,year=2021)).proj()
+current_allen_table = (minnie.AllenProofreading() & dict(month=4,day=14,year=2021)).proj()
 key_source = ((minnie.Decimation).proj(decimation_version='version') & 
                             "decimation_version=" + str(decimation_version) &
                        f"decimation_ratio={decimation_ratio}" &  (minnie.BaylorSegmentCentroid() & "multiplicity>0")  & 
@@ -104,13 +104,13 @@ key_source = ((minnie.Decimation).proj(decimation_version='version') &
 key_source                 
 
 
-# In[9]:
+# In[ ]:
 
 
 #minnie.DecompositionVersions.insert1(dict(process_version=6,description="3/4: retry limb processing with meshparty if meshafterparty fails"),skip_duplicates=True)
 
 
-# In[10]:
+# In[ ]:
 
 
 # schema.external['decomposition'].delete(delete_external_files=True)
@@ -119,7 +119,7 @@ key_source
 # # schema.external['decimated_meshes'].delete(delete_external_files=True)
 
 
-# In[13]:
+# In[ ]:
 
 
 # key_source = ((minnie.Decimation).proj(decimation_version='version') & 
@@ -128,7 +128,7 @@ key_source
 # minnie.Decomposition() & key_source
 
 
-# In[14]:
+# In[ ]:
 
 
 import numpy as np
@@ -195,7 +195,7 @@ class Decomposition(dj.Computed):
     
     key_source = ((minnie.Decimation).proj(decimation_version='version') & 
                             "decimation_version=" + str(decimation_version) &
-                       f"decimation_ratio={decimation_ratio}" &  (minnie.BaylorSegmentCentroid() & "multiplicity>0")  & (minnie.AllenProofreading() & dict(month=3,day=18,year=2021)).proj())               
+                       f"decimation_ratio={decimation_ratio}" &  (minnie.BaylorSegmentCentroid() & "multiplicity>0")  & (minnie.AllenProofreading() & dict(month=4,day=14,year=2021)).proj())               
     
 
     def make(self,key):
@@ -286,10 +286,12 @@ class Decomposition(dj.Computed):
         keys_to_delete = ["axon_length",
         "axon_area",
         "max_soma_volume",
-        "max_soma_n_faces"]
+        "max_soma_n_faces",
+        "n_boutons"]
         
         for k_to_delete in keys_to_delete:
-            del new_key[k_to_delete]
+            if k_to_delete in new_key.keys():
+                del new_key[k_to_delete]
 
         self.insert1(new_key, allow_direct_insert=True, skip_duplicates=True)
 
@@ -299,7 +301,7 @@ class Decomposition(dj.Computed):
 
 # # Running the Populate
 
-# In[20]:
+# In[ ]:
 
 
 curr_table = (minnie.schema.jobs & "table_name='__decomposition'")
@@ -308,7 +310,7 @@ curr_table = (minnie.schema.jobs & "table_name='__decomposition'")
 #(curr_table & "error_message = 'ValueError: need at least one array to concatenate'").delete()
 
 
-# In[18]:
+# In[ ]:
 
 
 import time
@@ -332,12 +334,6 @@ else:
 print('Populate Done')
 
 print(f"Total time for DecompositionMultiSoma populate = {time.time() - start_time}")
-
-
-# In[ ]:
-
-
-
 
 
 # In[ ]:
