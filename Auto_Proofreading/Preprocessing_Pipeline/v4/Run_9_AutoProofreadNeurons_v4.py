@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[ ]:
+# In[1]:
 
 
 """
@@ -12,7 +12,7 @@ using the new decomposition method
 """
 
 
-# In[ ]:
+# In[2]:
 
 
 import numpy as np
@@ -29,28 +29,28 @@ import datajoint_utils as du
 from importlib import reload
 
 
-# In[ ]:
+# In[3]:
 
 
 #so that it will have the adapter defined
 from datajoint_utils import *
 
 
-# In[ ]:
+# In[4]:
 
 
-test_mode = False
+test_mode = True
 
 
 # # Debugging the contains method
 
-# In[ ]:
+# In[5]:
 
 
 import system_utils as su
 
 
-# In[ ]:
+# In[6]:
 
 
 import minfig
@@ -71,7 +71,7 @@ du.print_minnie65_config_paths(minfig)
 minnie,schema = du.configure_minnie_vm()
 
 
-# In[ ]:
+# In[7]:
 
 
 from importlib import reload
@@ -117,7 +117,7 @@ import numpy as np
 
 # # Defining the Table
 
-# In[ ]:
+# In[8]:
 
 
 import neuron_utils as nru
@@ -126,16 +126,28 @@ import trimesh_utils as tu
 import numpy as np
 
 
-# In[ ]:
+# In[9]:
 
 
 import meshlab
 meshlab.set_meshlab_port(current_port=None)
 
 
+# In[10]:
+
+
+# minnie,schema = du.configure_minnie_vm()
+# minnie.AutoProofreadNeurons4.drop()
+# minnie.AutoProofreadStats4.drop()
+# minnie.AutoProofreadSynapse4.drop()
+# minnie.AutoProofreadSynapseErrors4.drop()
+# minnie.schema.external['faces'].delete(delete_external_files=True)
+# minnie.schema.external['skeleton'].delete(delete_external_files=True)
+
+
 # # Proofreading Version
 
-# In[ ]:
+# In[11]:
 
 
 @schema
@@ -159,7 +171,7 @@ AutoProofreadVersion()
 
 # # Defining the Synapse Table
 
-# In[ ]:
+# In[12]:
 
 
 @schema
@@ -175,10 +187,23 @@ class AutoProofreadSynapse4(dj.Manual):
     skeletal_distance_to_soma=NULL : double #the length (in um) of skeleton distance from synapse to soma (-1 if on the soma)
     """
 
+@schema
+class AutoProofreadSynapseErrors4(dj.Manual):
+    definition="""
+    synapse_id           : bigint unsigned              # synapse index within the segmentation
+    synapse_type: enum('presyn','postsyn')
+    ver                  : decimal(6,2)                 # the version number of the materializaiton
+    ---
+    segment_id           : bigint unsigned              # segment_id of the cell. Equivalent to Allen 'pt_root_id
+    split_index          : tinyint unsigned             # the index of the neuron object that resulted AFTER THE SPLITTING ALGORITHM
+    nucleus_id           : int unsigned                 # id of nucleus from the flat segmentation  Equivalent to Allen: 'id'. 
+    skeletal_distance_to_soma=NULL : double #the length (in um) of skeleton distance from synapse to soma (-1 if on the soma)
+    """
+
 
 # # Defining the Proofreading Stats Table
 
-# In[ ]:
+# In[13]:
 
 
 """
@@ -197,7 +222,7 @@ This table will include the following information:
 """
 
 
-# In[ ]:
+# In[14]:
 
 
 @schema
@@ -280,18 +305,7 @@ class AutoProofreadStats4(dj.Manual):
 
 # # Creating the Auto Proofread Neuron Table
 
-# In[ ]:
-
-
-# minnie,schema = du.configure_minnie_vm()
-# minnie.AutoProofreadNeurons4.drop()
-# minnie.AutoProofreadStats4.drop()
-# minnie.AutoProofreadSynapse4.drop()
-# minnie.schema.external['faces'].delete(delete_external_files=True)
-# minnie.schema.external['skeleton'].delete(delete_external_files=True)
-
-
-# In[ ]:
+# In[15]:
 
 
 import numpy as np
@@ -402,10 +416,10 @@ class AutoProofreadNeurons4(dj.Computed):
     #key_source = minnie.Decomposition() & minnie.NucleiSegmentsRun2()
     #key_source = (minnie.Decomposition() & minnie.NucleiSegmentsRun2() 
     #              & minnie.DecompositionAxon().proj()) #& dict(segment_id=864691136361533410)
-    key_source = (minnie.Decomposition() & minnie.NucleiSegmentsRun2() 
-                  & minnie.DecompositionAxon().proj() & 
-              (minnie.AutoProofreadNeurons3() & "spine_category = 'densely_spined'").proj()
-             )
+    key_source = (minnie.Decomposition() & minnie.NucleiSegmentsRun4() 
+                  & minnie.DecompositionAxon().proj() 
+              #& (minnie.AutoProofreadNeurons3() & "spine_category = 'densely_spined'").proj()
+             ) #& dict(segment_id = 864691135992699784)
     
 
     def make(self,key):
@@ -433,6 +447,7 @@ class AutoProofreadNeurons4(dj.Computed):
             
             
         AutoProofreadSynapse_keys = curr_output["AutoProofreadSynapse_keys"]
+        AutoProofreadSynapseErrors_keys = curr_output["AutoProofreadSynapseErrors_keys"]
         AutoProofreadNeurons_keys = curr_output["AutoProofreadNeurons_keys"]
         filtering_info_list = curr_output["filtering_info_list"]
         synapse_stats_list = curr_output["synapse_stats_list"]
@@ -480,6 +495,11 @@ class AutoProofreadNeurons4(dj.Computed):
             #write the AutoProofreadNeurons and AutoProofreadSynapse Tabel
             keys_to_write = AutoProofreadSynapse_keys[sp_idx]
             AutoProofreadSynapse4.insert(keys_to_write,skip_duplicates=True)
+            
+            keys_to_write_errors = AutoProofreadSynapseErrors_keys[sp_idx]
+            AutoProofreadSynapseErrors4.insert(keys_to_write_errors,skip_duplicates=True)
+            
+            
             
             new_key = AutoProofreadNeurons_keys[sp_idx]
             self.insert1(new_key,skip_duplicates=True,allow_direct_insert=True)
@@ -535,11 +555,11 @@ class AutoProofreadNeurons4(dj.Computed):
 
 # # Running the Populate
 
-# In[ ]:
+# In[18]:
 
 
 curr_table = (minnie.schema.jobs & "table_name='__auto_proofread_neurons4'")
-(curr_table)#.delete()# & "status='error'")
+(curr_table).delete()# & "status='error'")
 #curr_table.delete()
 #(curr_table & "error_message = 'ValueError: need at least one array to concatenate'").delete()
 
@@ -567,12 +587,6 @@ else:
 print('Populate Done')
 
 print(f"Total time for AutoProofreadNeuron4 populate = {time.time() - start_time}")
-
-
-# In[ ]:
-
-
-minnie.AutoProofreadStats4()
 
 
 # In[ ]:

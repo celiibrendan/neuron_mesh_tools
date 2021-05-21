@@ -9,6 +9,7 @@ Purpose: To decompose the multi-somas for splitting
 using the new decomposition method
 
 
+
 """
 
 
@@ -22,8 +23,8 @@ from tqdm.notebook import tqdm
 from pathlib import Path
 
 from os import sys
-sys.path.append("/meshAfterParty/")
 sys.path.append("/meshAfterParty/meshAfterParty/")
+sys.path.append("/meshAfterParty/")
 
 import datajoint_utils as du
 from importlib import reload
@@ -92,14 +93,8 @@ meshlab.set_meshlab_port(current_port=None)
 # In[ ]:
 
 
+# DecompositionSplit.drop()
 # schema.external['decomposition'].delete(delete_external_files=True)
-
-
-# In[ ]:
-
-
-# key_source = minnie.Decomposition() & (minnie.AllenProofreading() & dict(month=3,day=18,year=2021)).proj()
-# key_source
 
 
 # In[ ]:
@@ -194,8 +189,7 @@ class DecompositionSplit(dj.Computed):
                 & f"n_somas<{max_n_somas}" & "n_error_limbs>0"))'''
     
     # This keysource acounts that you could have more than 1 possible soma but not a significant limb connecting them (no error limbs)
-    key_source = minnie.Decomposition() & "n_somas>1 OR n_error_limbs>0" & (minnie.AllenProofreading() 
-                                                                            & minnie.AllenProofreadingCurrentDate()).proj()
+    key_source = minnie.Decomposition() & "n_somas>1 OR n_error_limbs>0" & du.proofreading_segment_id_restriction()
     
     def make(self,key):
         """
@@ -399,9 +393,9 @@ if not test_mode:
     time.sleep(random.randint(0, 800))
 print('Populate Started')
 if not test_mode:
-    DecompositionSplit.populate(reserve_jobs=True, suppress_errors=True)
+    DecompositionSplit.populate(reserve_jobs=True, suppress_errors=True, order="random")
 else:
-    DecompositionSplit.populate(reserve_jobs=True, suppress_errors=False)
+    DecompositionSplit.populate(reserve_jobs=True, suppress_errors=False,order="random")
 print('Populate Done')
 
 print(f"Total time for DecompositionSplit populate = {time.time() - start_time}")

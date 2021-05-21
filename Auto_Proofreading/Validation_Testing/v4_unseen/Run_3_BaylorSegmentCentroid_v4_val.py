@@ -7,9 +7,9 @@
 """
 Purpose: Run the Soma Finding
 Algorithm for all the cells
-in our final match
+for the unseen validation 
 
-
+NOTE: 
 
 """
 
@@ -27,7 +27,7 @@ from os import sys
 sys.path.append("/meshAfterParty/")
 sys.path.append("/meshAfterParty/meshAfterParty")
 
-
+import datajoint_utils as du
 from importlib import reload
 
 
@@ -50,7 +50,6 @@ if not test_mode:
     time.sleep(random_sleep_sec)
 print("Done sleeping")
 
-import datajoint_utils as du
 du.config_celii()
 du.set_minnie65_config_segmentation(minfig)
 du.print_minnie65_config_paths(minfig)
@@ -59,16 +58,9 @@ du.print_minnie65_config_paths(minfig)
 minnie,schema = du.configure_minnie_vm()
 
 
-# In[4]:
-
-
-current_version = du.current_nucleus_version
-current_version
-
-
 # # Getting the list of neurons to decompose for the mutli soma testing
 
-# In[5]:
+# In[4]:
 
 
 # import pandas as pd
@@ -90,7 +82,7 @@ current_version
 
 # # Defining the Table
 
-# In[ ]:
+# In[5]:
 
 
 import neuron_utils as nru
@@ -99,7 +91,7 @@ import trimesh_utils as tu
 import numpy as np
 
 
-# In[ ]:
+# In[6]:
 
 
 import meshlab
@@ -108,14 +100,14 @@ temporary_folder = 'decimation_temp'
 meshlab_scripts = {}
 
 
-# In[ ]:
+# In[7]:
 
 
 #so that it will have the adapter defined
 from datajoint_utils import *
 
 
-# In[ ]:
+# In[8]:
 
 
 @schema
@@ -131,40 +123,42 @@ class NeuronGliaNuclei(dj.Manual):
     """
 
 
-# In[ ]:
+# In[9]:
 
 
 # schema.external['faces'].delete(delete_external_files=True)
 # schema.external['somas'].delete(delete_external_files=True)
 
 
-# In[ ]:
+# In[10]:
 
 
 # minnie.BaylorSegmentCentroid.delete()
 # minnie.NeuronGliaNuclei().delete()
 
 
-# In[ ]:
+# In[11]:
 
 
 decimation_version = 0
 decimation_ratio = 0.25
 verts_min = 10000
-
-key_source = (((minnie.Decimation & f"n_vertices > {verts_min}").proj(decimation_version='version') & 
+key_source =  (((minnie.Decimation & f"n_vertices > {verts_min}").proj(decimation_version='version') & 
                             "decimation_version=" + str(decimation_version) &
-                       f"decimation_ratio={decimation_ratio}") & (dj.U("segment_id") )  & (minnie.AllenProofreading() &  
-                                                                                           minnie.AllenProofreadingCurrentDate()).proj())
+                       f"decimation_ratio={decimation_ratio}") & (
+                                                                  du.current_validation_segment_id_restriction
+                                                                 )
+                  )
 key_source
 
 
-# In[ ]:
+# In[12]:
 
 
 decimation_version = 0
 decimation_ratio = 0.25
 verts_min = 10000
+current_version = du.current_nucleus_version
 
 
 import trimesh_utils as tu
@@ -192,10 +186,12 @@ class BaylorSegmentCentroid(dj.Computed):
 
     """
 
-    key_source = (((minnie.Decimation & f"n_vertices > {verts_min}").proj(decimation_version='version') & 
+    key_source =  (((minnie.Decimation & f"n_vertices > {verts_min}").proj(decimation_version='version') & 
                             "decimation_version=" + str(decimation_version) &
-                       f"decimation_ratio={decimation_ratio}") & (dj.U("segment_id") )  & (minnie.AllenProofreading() & 
-                                                                                           minnie.AllenProofreadingCurrentDate()).proj())
+                       f"decimation_ratio={decimation_ratio}") & (
+                                                                  du.current_validation_segment_id_restriction
+                                                                 )
+                  )
                                                                  
      
 
@@ -371,12 +367,26 @@ class BaylorSegmentCentroid(dj.Computed):
 
 # # Running the Populate
 
-# In[ ]:
+# In[16]:
 
 
 curr_table = (minnie.schema.jobs & "table_name='__baylor_segment_centroid'")
 (curr_table)#.delete()#.delete()# & "status='error'"#.delete()
 #curr_table.delete()
+
+
+# In[ ]:
+
+
+# import pandas as pd
+# key_hash,error_message = curr_table.fetch("key_hash","error_message")
+
+# df = pd.DataFrame.from_dict([dict(key_hash = k,error_message = m) for k,m in zip(key_hash,error_message)])
+# df
+# #df.columns = ["error","key_hash"]
+# key_hashes_to_delete = df[df["error_message"].str.contains("OSError")]["key_hash"].to_numpy()
+
+# (curr_table & [dict(key_hash=k) for k in key_hashes_to_delete]).delete()
 
 
 # In[ ]:

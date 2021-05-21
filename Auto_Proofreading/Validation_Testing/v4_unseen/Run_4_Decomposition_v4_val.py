@@ -8,12 +8,10 @@
 Purpose: To decompose the multi-somas for splitting
 using the new decomposition method
 
-
-
 """
 
 
-# In[ ]:
+# In[1]:
 
 
 import numpy as np
@@ -24,13 +22,13 @@ from pathlib import Path
 
 from os import sys
 sys.path.append("/meshAfterParty/")
-sys.path.append("/meshAfterParty/meshAfterParty")
+sys.path.append("/meshAfterParty/meshAfterParty/")
 
 import datajoint_utils as du
 from importlib import reload
 
 
-# In[ ]:
+# In[2]:
 
 
 #so that it will have the adapter defined
@@ -95,37 +93,25 @@ meshlab.set_meshlab_port(current_port=None)
 
 decimation_version = 0
 decimation_ratio = 0.25
+# key_source = (minnie.Decimation().proj(decimation_version='version')  & 
+#                   dict(decimation_version=decimation_version,decimation_ratio=decimation_ratio)  
+#                   & minnie.MultiSomaProofread2() & (dj.U("segment_id") & (minnie.BaylorSegmentCentroid()).proj()))
 
-current_allen_table = (minnie.AllenProofreading() & minnie.AllenProofreadingCurrentDate()).proj()
-key_source = ((minnie.Decimation).proj(decimation_version='version') & 
+key_source =  ((minnie.Decimation).proj(decimation_version='version') & 
                             "decimation_version=" + str(decimation_version) &
-                       f"decimation_ratio={decimation_ratio}" &  (minnie.BaylorSegmentCentroid() & "multiplicity>0")  & 
-              current_allen_table)
-key_source                 
+                       f"decimation_ratio={decimation_ratio}" &  (minnie.BaylorSegmentCentroid() & "multiplicity>0")
+                  & du.current_validation_segment_id_restriction)
+                                                                  
+key_source
 
 
 # In[ ]:
 
 
-#minnie.DecompositionVersions.insert1(dict(process_version=6,description="3/4: retry limb processing with meshparty if meshafterparty fails"),skip_duplicates=True)
-
-
-# In[ ]:
-
-
-# schema.external['decomposition'].delete(delete_external_files=True)
-# schema.external['somas'].delete(delete_external_files=True)
-# schema.external['faces'].delete(delete_external_files=True)
-# # schema.external['decimated_meshes'].delete(delete_external_files=True)
-
-
-# In[ ]:
-
-
-# key_source = ((minnie.Decimation).proj(decimation_version='version') & 
-#                             "decimation_version=" + str(decimation_version) &
-#                        f"decimation_ratio={decimation_ratio}" &  (minnie.BaylorSegmentCentroid() & "multiplicity>0")  & (minnie.AllenProofreading() & dict(month=3,day=18,year=2021)).proj())               
-# minnie.Decomposition() & key_source
+# minnie.DecompositionVersions.insert1(dict(process_version=8,
+#                                         description="uses meshparty for decomposition type"),
+#                                    skip_duplicates=True)
+# minnie.DecompositionVersions()
 
 
 # In[ ]:
@@ -193,10 +179,12 @@ class Decomposition(dj.Computed):
 
 
     
-    key_source = ((minnie.Decimation).proj(decimation_version='version') & 
+    key_source =  ((minnie.Decimation).proj(decimation_version='version') & 
                             "decimation_version=" + str(decimation_version) &
-                       f"decimation_ratio={decimation_ratio}" &  (minnie.BaylorSegmentCentroid() & "multiplicity>0")  & (minnie.AllenProofreading() &
-                                                                    minnie.AllenProofreadingCurrentDate()).proj())               
+                       f"decimation_ratio={decimation_ratio}" &  (minnie.BaylorSegmentCentroid() & "multiplicity>0")
+                  & du.current_validation_segment_id_restriction
+                  - du.current_validation_segment_id_exclude)
+                                                                  
     
 
     def make(self,key):
@@ -301,7 +289,7 @@ class Decomposition(dj.Computed):
 
 
 curr_table = (minnie.schema.jobs & "table_name='__decomposition'")
-(curr_table)#.delete()
+(curr_table)#.delete()# & "status='error'")
 #curr_table.delete()
 #(curr_table & "error_message = 'ValueError: need at least one array to concatenate'").delete()
 
@@ -326,10 +314,10 @@ print('Populate Started')
 if not test_mode:
     Decomposition.populate(reserve_jobs=True, suppress_errors=True)
 else:
-    Decomposition.populate(reserve_jobs=True, suppress_errors=False)
+    Decomposition.populate(reserve_jobs=True, suppress_errors=True)
 print('Populate Done')
 
-print(f"Total time for DecompositionMultiSoma populate = {time.time() - start_time}")
+print(f"Total time for Decomposition populate = {time.time() - start_time}")
 
 
 # In[ ]:
