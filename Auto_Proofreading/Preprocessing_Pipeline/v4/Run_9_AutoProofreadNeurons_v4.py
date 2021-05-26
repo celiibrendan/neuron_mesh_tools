@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[1]:
+# In[ ]:
 
 
 """
@@ -12,7 +12,7 @@ using the new decomposition method
 """
 
 
-# In[2]:
+# In[ ]:
 
 
 import numpy as np
@@ -29,28 +29,28 @@ import datajoint_utils as du
 from importlib import reload
 
 
-# In[3]:
+# In[ ]:
 
 
 #so that it will have the adapter defined
 from datajoint_utils import *
 
 
-# In[4]:
+# In[ ]:
 
 
-test_mode = True
+test_mode = False
 
 
 # # Debugging the contains method
 
-# In[5]:
+# In[ ]:
 
 
 import system_utils as su
 
 
-# In[6]:
+# In[ ]:
 
 
 import minfig
@@ -71,7 +71,7 @@ du.print_minnie65_config_paths(minfig)
 minnie,schema = du.configure_minnie_vm()
 
 
-# In[7]:
+# In[ ]:
 
 
 from importlib import reload
@@ -117,7 +117,7 @@ import numpy as np
 
 # # Defining the Table
 
-# In[8]:
+# In[ ]:
 
 
 import neuron_utils as nru
@@ -126,14 +126,14 @@ import trimesh_utils as tu
 import numpy as np
 
 
-# In[9]:
+# In[ ]:
 
 
 import meshlab
 meshlab.set_meshlab_port(current_port=None)
 
 
-# In[10]:
+# In[ ]:
 
 
 # minnie,schema = du.configure_minnie_vm()
@@ -147,7 +147,7 @@ meshlab.set_meshlab_port(current_port=None)
 
 # # Proofreading Version
 
-# In[11]:
+# In[ ]:
 
 
 @schema
@@ -171,7 +171,7 @@ AutoProofreadVersion()
 
 # # Defining the Synapse Table
 
-# In[12]:
+# In[ ]:
 
 
 @schema
@@ -203,7 +203,7 @@ class AutoProofreadSynapseErrors4(dj.Manual):
 
 # # Defining the Proofreading Stats Table
 
-# In[13]:
+# In[ ]:
 
 
 """
@@ -222,7 +222,7 @@ This table will include the following information:
 """
 
 
-# In[14]:
+# In[ ]:
 
 
 @schema
@@ -237,6 +237,7 @@ class AutoProofreadStats4(dj.Manual):
     
     axon_skeleton: <skeleton>      # the skeleton of the axon of the final proofread neuorn
     dendrite_skeleton: <skeleton>  # the skeleton of the dendrite branches of the final proofread neuorn
+    neuron_skeleton: <skeleton>    # the skeleton of the entire neuron
     
     axon_on_dendrite_merges_error_area=NULL : double #the area (in um ^ 2) of the faces canceled out by filter
     axon_on_dendrite_merges_error_length=NULL : double #the length (in um) of skeleton distance canceled out by filter
@@ -305,7 +306,7 @@ class AutoProofreadStats4(dj.Manual):
 
 # # Creating the Auto Proofread Neuron Table
 
-# In[15]:
+# In[ ]:
 
 
 import numpy as np
@@ -419,7 +420,7 @@ class AutoProofreadNeurons4(dj.Computed):
     key_source = (minnie.Decomposition() & minnie.NucleiSegmentsRun4() 
                   & minnie.DecompositionAxon().proj() 
               #& (minnie.AutoProofreadNeurons3() & "spine_category = 'densely_spined'").proj()
-             ) #& dict(segment_id = 864691135992699784)
+             ) #& dict(segment_id = 864691135575137566) #864691135575137566
     
 
     def make(self,key):
@@ -458,6 +459,7 @@ class AutoProofreadNeurons4(dj.Computed):
         
         axon_skeleton_list = curr_output["axon_skeleton_list"]
         dendrite_skeleton_list = curr_output["dendrite_skeleton_list"]
+        neuron_skeleton_list = curr_output["neuron_skeleton_list"]
             
         
         # Once have inserted all the new neurons need to compute the stats
@@ -522,6 +524,7 @@ class AutoProofreadNeurons4(dj.Computed):
                             
                             axon_skeleton = axon_skeleton_list[sp_idx],
                             dendrite_skeleton = dendrite_skeleton_list[sp_idx],
+                            neuron_skeleton = neuron_skeleton_list[sp_idx],
                          
 
                             # ------------ For local valid synapses to that split_index
@@ -546,8 +549,11 @@ class AutoProofreadNeurons4(dj.Computed):
             
             proofread_stats_entries.append(curr_key)
             
-        for pse in proofread_stats_entries:
-            AutoProofreadStats4.insert1(pse,skip_duplicates=True)
+        
+        AutoProofreadStats4.insert(proofread_stats_entries,skip_duplicates=True)
+            
+#         for pse in proofread_stats_entries:
+#             AutoProofreadStats4.insert1(pse,skip_duplicates=True)
             
 
         print(f"\n\n ***------ Total time for {key['segment_id']} = {time.time() - whole_pass_time} ------ ***")
@@ -555,11 +561,11 @@ class AutoProofreadNeurons4(dj.Computed):
 
 # # Running the Populate
 
-# In[18]:
+# In[ ]:
 
 
 curr_table = (minnie.schema.jobs & "table_name='__auto_proofread_neurons4'")
-(curr_table).delete()# & "status='error'")
+(curr_table)#.delete()# & "status='error'")
 #curr_table.delete()
 #(curr_table & "error_message = 'ValueError: need at least one array to concatenate'").delete()
 
@@ -587,10 +593,4 @@ else:
 print('Populate Done')
 
 print(f"Total time for AutoProofreadNeuron4 populate = {time.time() - start_time}")
-
-
-# In[ ]:
-
-
-
 
