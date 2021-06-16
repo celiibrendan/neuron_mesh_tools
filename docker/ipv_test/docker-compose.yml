@@ -1,0 +1,18 @@
+version: '2'
+services:
+  notebook2:
+    image: celiib/ipv_test:latest
+    build: 
+      context: .
+    env_file: .env
+    environment:
+      - DISPLAY=$DISPLAY
+      - XSOCK=/tmp/.X11-unix/X0
+    ports:
+      - "8892:8888"
+    volumes:
+      - ../../../neuron_mesh_tools:/notebooks
+      - ../../../meshAfterParty/meshAfterParty:/meshAfterParty
+      - ../../../meshAfterParty/examples:/examples
+      - /mnt:/mnt
+
