@@ -196,7 +196,7 @@ class AutoProofreadValidationScore6(dj.Computed):
     
     #key_source = minnie.Decomposition() & minnie.NucleiSegmentsRun2() & "segment_id=864691136540183458"
     pre_source = (minnie.AutoProofreadValidationSegmentMap4() & 
-    (dj.U("old_segment_id") & minnie.DecompositionAxon.proj(old_segment_id="segment_id")))
+    (dj.U("old_segment_id") & minnie.DecompositionCellType.proj(old_segment_id="segment_id")))
 
     key_source = (pre_source - 
                   du.current_validation_segment_id_exclude.proj(old_segment_id="segment_id")
@@ -221,20 +221,20 @@ class AutoProofreadValidationScore6(dj.Computed):
         if verbose:
             print(f"nuc_center_coords = {nuc_center_coords}")
 
-        #2) Make sure that same number of DecompositionAxon objects as in Decomposition
+        #2) Make sure that same number of DecompositionCellType objects as in Decomposition
         old_segment_id = segment_map_dict["old_segment_id"]
         if verbose:
             print(f"old_segment_id = {old_segment_id}")
 
         search_key = dict(segment_id=old_segment_id)
         n_somas = len(minnie.BaylorSegmentCentroid() & search_key)
-        n_decomp_axon = len(minnie.DecompositionAxon() & search_key)
+        n_decomp_axon = len(minnie.DecompositionCellType() & search_key)
         if verbose:
-            print(f"# of somas = {n_somas} and # of DecompositionAxon = {n_decomp_axon}")
+            print(f"# of somas = {n_somas} and # of DecompositionCellType = {n_decomp_axon}")
 
 
         if n_somas != n_decomp_axon:
-            raise Exception(f"# of somas = {n_somas} NOT MATCH # of DecompositionAxon = {n_decomp_axon}")
+            raise Exception(f"# of somas = {n_somas} NOT MATCH # of DecompositionCellType = {n_decomp_axon}")
 
         #3) Pick the neuron object that is closest and within a certain range of the nucleus
         neuron_objs,split_idxs = du.decomposition_with_spine_recalculation(old_segment_id)
@@ -269,20 +269,19 @@ class AutoProofreadValidationScore6(dj.Computed):
             split_index = split_idxs[0]
             neuron_obj = neuron_objs[0]
 
-        
         (filt_neuron,
-             return_synapse_df_revised,
-             return_synapse_df_errors,
-            return_validation_df_revised,
-            return_validation_df_extension) =  vu.filtered_neuron_score(neuron_obj = neuron_obj,   
-                                filter_list = pru.v6_exc_filters(),
-                                plot_limb_branch_filter_with_disconnect_effect = False,
-                                verbose = True,
-                                plot_score=False,
-                                nucleus_id = nucleus_id,
-                                return_synapse_df_errors=True,
-                                return_validation_df_extension = True,                                        
-                                split_index=split_index)
+                     return_synapse_df_revised,
+                     return_synapse_df_errors,
+                    return_validation_df_revised,
+                    return_validation_df_extension) =  vu.filtered_neuron_score(neuron_obj = neuron_obj,   
+                                        filter_list = pru.v6_exc_filters(),
+                                        plot_limb_branch_filter_with_disconnect_effect = False,
+                                        verbose = True,
+                                        plot_score=False,
+                                        nucleus_id = nucleus_id,
+                                        return_synapse_df_errors=True,
+                                        return_validation_df_extension = True,                                        
+                                        split_index=split_index)
         
         print(f"\n\n ----- Done Filtering ----------")
         
@@ -291,7 +290,7 @@ class AutoProofreadValidationScore6(dj.Computed):
         #------- saving off the filtered neuron
         
         save_time = time.time()
-        file_name = f"{filt_neuron.segment_id}_{filt_neuron.description}_v5_val"
+        file_name = f"{filt_neuron.segment_id}_{filt_neuron.description}_v6_val"
         ret_file_path = filt_neuron.save_compressed_neuron(output_folder=str(du.get_decomposition_path()),
                                         file_name=file_name,        
                                           return_file_path=True,
@@ -355,7 +354,8 @@ class AutoProofreadValidationScore6(dj.Computed):
 
 
 curr_table = (minnie.schema.jobs & "table_name='__auto_proofread_validation_score6'")
-(curr_table)#.delete()
+#((curr_table) & "key_hash = '9e77fcc57380988689907f4df10f18e4'").delete()
+curr_table#.delete()
 
 
 # In[ ]:
