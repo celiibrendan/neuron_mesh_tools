@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[1]:
+# In[ ]:
 
 
 """
@@ -12,7 +12,7 @@ axon preprocessing
 """
 
 
-# In[2]:
+# In[ ]:
 
 
 import numpy as np
@@ -29,14 +29,14 @@ import datajoint_utils as du
 from importlib import reload
 
 
-# In[3]:
+# In[ ]:
 
 
 #so that it will have the adapter defined
 from datajoint_utils import *
 
 
-# In[4]:
+# In[ ]:
 
 
 test_mode = False
@@ -44,13 +44,13 @@ test_mode = False
 
 # # Debugging the contains method
 
-# In[5]:
+# In[ ]:
 
 
 import system_utils as su
 
 
-# In[6]:
+# In[ ]:
 
 
 import minfig
@@ -71,7 +71,7 @@ du.print_minnie65_config_paths(minfig)
 minnie,schema = du.configure_minnie_vm()
 
 
-# In[7]:
+# In[ ]:
 
 
 from importlib import reload
@@ -117,7 +117,7 @@ import numpy as np
 
 # # Defining the Table
 
-# In[8]:
+# In[ ]:
 
 
 import meshlab
@@ -126,7 +126,7 @@ meshlab.set_meshlab_port(current_port=None)
 
 # # Proofreading Version
 
-# In[9]:
+# In[ ]:
 
 
 @schema
@@ -139,7 +139,8 @@ class DecompositonAxonVersion(dj.Manual):
 versions=[[0,"axon with standard meshparty"],
           [2,"axon with finer resolution"],
          [4,"even more fine resoution, axon skeleton, boutons, webbing"],
-         [5,"filtered away floating pieces near soma for stitching"]]
+         [5,"filtered away floating pieces near soma for stitching"],
+         [6, "max stitch distance = 2000, face threshold = 50"]]
 
 dict_to_write = [dict(axon_version=k,description=v) for k,v in versions]
 DecompositonAxonVersion.insert(dict_to_write,skip_duplicates=True)
@@ -147,15 +148,15 @@ DecompositonAxonVersion.insert(dict_to_write,skip_duplicates=True)
 DecompositonAxonVersion()
 
 
-# In[38]:
+# In[ ]:
 
 
-# minnie,schema = du.configure_minnie_vm()
-# minnie.DecompositionAxon.delete()
+#minnie,schema = du.configure_minnie_vm()
+#minnie.DecompositionAxon.delete()
 #minnie.schema.external['decomposition'].delete(delete_external_files=True)
 
 
-# In[11]:
+# In[ ]:
 
 
 import numpy as np
@@ -263,7 +264,7 @@ class DecompositionAxon(dj.Computed):
 
 # # Running the Populate
 
-# In[37]:
+# In[ ]:
 
 
 curr_table = (minnie.schema.jobs & "table_name='__decomposition_axon'")
@@ -295,4 +296,10 @@ else:
 print('Populate Done')
 
 print(f"Total time for DecompositionAxon populate = {time.time() - start_time}")
+
+
+# In[ ]:
+
+
+
 
