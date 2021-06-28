@@ -151,6 +151,7 @@ For presyn/postsyn
 import numpy as np
 import time
 import classification_utils as clu
+
 import proofreading_utils as pru
 import axon_utils as au
 import validation_utils as vu
@@ -237,7 +238,8 @@ class AutoProofreadValidationScore6(dj.Computed):
             raise Exception(f"# of somas = {n_somas} NOT MATCH # of DecompositionCellType = {n_decomp_axon}")
 
         #3) Pick the neuron object that is closest and within a certain range of the nucleus
-        neuron_objs,split_idxs = du.decomposition_with_spine_recalculation(old_segment_id)
+        neuron_objs,split_idxs = du.decomposition_with_spine_recalculation(old_segment_id,
+                                                                          attempt_apply_spines_to_neuron = False)
         if n_somas > 1:
             """
             Finding the closest soma:
@@ -354,8 +356,8 @@ class AutoProofreadValidationScore6(dj.Computed):
 
 
 curr_table = (minnie.schema.jobs & "table_name='__auto_proofread_validation_score6'")
-#((curr_table) & "key_hash = '9e77fcc57380988689907f4df10f18e4'").delete()
-curr_table#.delete()
+#curr_table#.delete()
+#curr_table.delete()
 
 
 # In[ ]:
@@ -367,6 +369,8 @@ pru = reload(pru)
 nru = reload(nru)
 import neuron
 neuron = reload(neuron)
+import datajoint_utils as du
+du = reload(du)
 
 start_time = time.time()
 if not test_mode:
