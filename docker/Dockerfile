@@ -89,6 +89,9 @@ RUN pip3 install nglui
 RUN pip3 install graphviz
 RUN pip3 install --force-reinstall cloud-volume ==3.8.0
 
+# ----- 7/1:
+RUN pip3 install dotmotif
+
 
 ADD ./jupyter/run_jupyter_unix.sh /scripts/
 ADD ./jupyter/jupyter_notebook_config.py /root/.jupyter/

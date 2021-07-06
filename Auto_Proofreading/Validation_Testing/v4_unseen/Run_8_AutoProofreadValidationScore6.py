@@ -356,6 +356,7 @@ class AutoProofreadValidationScore6(dj.Computed):
 
 
 curr_table = (minnie.schema.jobs & "table_name='__auto_proofread_validation_score6'")
+curr_table
 #curr_table#.delete()
 #curr_table.delete()
 
