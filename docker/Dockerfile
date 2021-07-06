@@ -87,7 +87,7 @@ RUN pip3 install nglui
 
 # ------- 1/25:
 RUN pip3 install graphviz
-RUN pip3 install --force-reinstall cloud-volume ==3.8.0
+RUN pip3 install --force-reinstall cloud-volume==3.8.0
 
 # ----- 7/1:
 RUN pip3 install dotmotif
